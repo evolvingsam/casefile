@@ -162,23 +162,7 @@ Casefile requires **zero external API keys** or environment variables to run loc
 PORT=3000
 ```
 
----
 
-## Deployment
-
-Casefile is optimized for instant zero-config deployment on Vercel:
-
-### Deploy via Vercel CLI
-```bash
-npx vercel --prod
-```
-
-### Deploy via GitHub Integration
-1. Push this repository to GitHub.
-2. Import repository into [Vercel Dashboard](https://vercel.com/new).
-3. Select **Next.js** framework preset and click **Deploy**.
-
----
 
 ## License
 
