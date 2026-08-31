@@ -50,7 +50,7 @@ function EvidenceDetailModal({
   const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
     if (!noteText.trim()) return;
-    addNote(`Regarding [${evidence.name}]: ${noteText.trim()}`, 'player');
+    addNote(`Regarding [${evidence.name}]: ${noteText.trim()}`, 'human');
     setNoteText('');
     setShowNoteInput(false);
   };

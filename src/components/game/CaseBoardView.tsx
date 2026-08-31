@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useGameStore } from '@/game/state/store';
-import { connectionExists } from '@/game/logic/investigation';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 
@@ -10,6 +9,7 @@ export function CaseBoardView() {
   const activeCase = useGameStore((s) => s.activeCase);
   const discoveredEvidenceIds = useGameStore((s) => s.discoveredEvidenceIds);
   const interviewedSuspectIds = useGameStore((s) => s.interviewedSuspectIds);
+  const agentActions = useGameStore((s) => s.agentActions);
   const notes = useGameStore((s) => s.notes);
   const connections = useGameStore((s) => s.connections);
   const addConnection = useGameStore((s) => s.addConnection);
@@ -29,19 +29,23 @@ export function CaseBoardView() {
 
   const discoveredEvidence = activeCase.evidence.filter((e) => discoveredEvidenceIds.has(e.id));
 
+  // Determine if evidence was inspected/discovered by agent or human
+  const isAgentDiscovered = (id: string) => {
+    return agentActions.some((a) => a.parameters?.evidence_id === id || a.result?.includes(id));
+  };
+
   const handleStartConnect = (id: string, type: 'evidence' | 'suspect', name: string) => {
     if (connectingSource) {
       if (connectingSource.id === id) {
         setConnectingSource(null);
         return;
       }
-      // Finish connection
       addConnection(
         connectingSource.id,
         connectingSource.type,
         id,
         type,
-        'Investigator Deduction',
+        'Shared Deduction',
       );
       setConnectingSource(null);
     } else {
@@ -52,7 +56,7 @@ export function CaseBoardView() {
   const handleCreateNote = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNote.trim()) return;
-    addNote(newNote.trim(), 'player');
+    addNote(newNote.trim(), 'human');
     setNewNote('');
   };
 
@@ -65,7 +69,7 @@ export function CaseBoardView() {
             className="text-xs font-mono tracking-widest uppercase"
             style={{ color: 'var(--color-amber)' }}
           >
-            📌 Case Board
+            📌 Shared Case Board
           </span>
           <div className="h-px flex-1" style={{ background: 'var(--color-border-subtle)' }} />
         </div>
@@ -75,16 +79,16 @@ export function CaseBoardView() {
               className="text-3xl font-bold mb-1"
               style={{ fontFamily: 'var(--font-playfair)' }}
             >
-              Investigation Board
+              Human + Agent Investigation Board
             </h1>
             <p style={{ color: 'var(--color-text-secondary)' }}>
-              Synthesize findings, correlate clues, and draw connections between evidence and suspects.
+              A single shared investigation board. Items pinned by both human detective and AI co-investigator appear here in real time.
             </p>
           </div>
 
           {connectingSource && (
             <div
-              className="p-3 rounded-lg text-xs flex items-center gap-3 animate-pulse"
+              className="p-3 rounded-lg text-xs flex items-center gap-3 animate-pulse shrink-0"
               style={{
                 background: 'oklch(75% 0.18 75 / 0.12)',
                 border: '1px solid var(--color-amber)',
@@ -140,7 +144,7 @@ export function CaseBoardView() {
           {(activeFilter === 'all' || activeFilter === 'suspects') && (
             <div>
               <h3 className="text-xs uppercase tracking-widest mb-3 font-semibold" style={{ color: 'var(--color-text-muted)' }}>
-                👤 Suspect Pins
+                👤 Suspect Pins (5)
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {activeCase.suspects.map((s) => {
@@ -180,7 +184,11 @@ export function CaseBoardView() {
                           </div>
                         </div>
 
-                        {isInterviewed && <Badge variant="amber">Interviewed</Badge>}
+                        {isInterviewed ? (
+                          <Badge variant="amber">Interviewed</Badge>
+                        ) : (
+                          <Badge variant="muted">Shared</Badge>
+                        )}
                       </div>
 
                       <p className="text-xs leading-relaxed line-clamp-2 mb-3" style={{ color: 'var(--color-text-secondary)' }}>
@@ -217,17 +225,18 @@ export function CaseBoardView() {
           {(activeFilter === 'all' || activeFilter === 'evidence') && (
             <div>
               <h3 className="text-xs uppercase tracking-widest mb-3 font-semibold" style={{ color: 'var(--color-text-muted)' }}>
-                🔍 Evidence Pins ({discoveredEvidence.length})
+                🔍 Evidence Pins ({discoveredEvidence.length}) — Provenance Tracked
               </h3>
 
               {discoveredEvidence.length === 0 ? (
                 <p className="text-xs italic" style={{ color: 'var(--color-text-muted)' }}>
-                  No evidence discovered yet. Search locations first.
+                  No evidence discovered yet. Search locations or ask AI agent to scan.
                 </p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {discoveredEvidence.map((ev) => {
                     const isConnectingThis = connectingSource?.id === ev.id;
+                    const agentTouched = isAgentDiscovered(ev.id);
 
                     return (
                       <div
@@ -240,7 +249,13 @@ export function CaseBoardView() {
                         <div>
                           <div className="flex items-center justify-between gap-2 mb-1.5">
                             <Badge variant="muted">{ev.tags[0] ?? 'clue'}</Badge>
-                            {ev.isRedHerring && <Badge variant="crimson">Unverified</Badge>}
+
+                            {/* Provenance badge */}
+                            {agentTouched ? (
+                              <Badge variant="amber">🤖 Agent Discovered</Badge>
+                            ) : (
+                              <Badge variant="muted">👤 Human Discovered</Badge>
+                            )}
                           </div>
 
                           <h4 className="text-sm font-semibold mb-1" style={{ fontFamily: 'var(--font-playfair)' }}>
@@ -279,13 +294,13 @@ export function CaseBoardView() {
           )}
         </div>
 
-        {/* Right Column: Case Notes & Connection Ledger */}
+        {/* Right Column: Shared Notes & Connection Ledger */}
         <div className="space-y-6">
           {/* Deductions & Case Notes */}
           {(activeFilter === 'all' || activeFilter === 'notes') && (
             <div className="card p-5 space-y-4">
               <h3 className="text-xs uppercase tracking-widest font-semibold" style={{ color: 'var(--color-amber)' }}>
-                📝 Case Notes &amp; Deductions ({notes.length})
+                📝 Shared Notes Feed ({notes.length})
               </h3>
 
               <form onSubmit={handleCreateNote} className="space-y-2">
@@ -298,12 +313,12 @@ export function CaseBoardView() {
                     outline: 'none',
                   }}
                   rows={3}
-                  placeholder="Record your theory, suspicion, or finding..."
+                  placeholder="Record your human deduction or note..."
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
                 />
                 <Button variant="primary" size="sm" type="submit" className="w-full">
-                  + Add Note to Board
+                  + Add Human Note
                 </Button>
               </form>
 
@@ -324,7 +339,7 @@ export function CaseBoardView() {
                     >
                       <div className="flex items-center justify-between text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
                         <span className="font-semibold uppercase tracking-wider" style={{ color: note.author === 'agent' ? 'var(--color-amber)' : 'var(--color-text-secondary)' }}>
-                          {note.author === 'agent' ? '🤖 Agent Observation' : '👤 Investigator Note'}
+                          {note.author === 'agent' ? '🤖 AI Observation' : '👤 Human Deduction'}
                         </span>
                         <button
                           className="opacity-0 group-hover:opacity-100 text-red-400 hover:underline cursor-pointer"
@@ -347,7 +362,7 @@ export function CaseBoardView() {
           {(activeFilter === 'all' || activeFilter === 'connections') && (
             <div className="card p-5 space-y-3">
               <h3 className="text-xs uppercase tracking-widest font-semibold" style={{ color: 'var(--color-amber)' }}>
-                🔗 Correlated Clues ({connections.length})
+                🔗 Correlated Clues Ledger ({connections.length})
               </h3>
 
               {connections.length === 0 ? (
@@ -379,7 +394,7 @@ export function CaseBoardView() {
                             {fromName} ↔ {toName}
                           </p>
                           <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
-                            {c.label ?? 'Linked'}
+                            {c.author === 'agent' ? '🤖 Agent Linked' : '👤 Human Linked'}
                           </p>
                         </div>
                         <button

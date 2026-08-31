@@ -61,7 +61,7 @@ function SuspectModal({
   const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
     if (!noteText.trim()) return;
-    addNote(`Regarding suspect [${suspect.name}]: ${noteText.trim()}`, 'player');
+    addNote(`Regarding suspect [${suspect.name}]: ${noteText.trim()}`, 'human');
     setNoteText('');
     setShowNoteInput(false);
   };

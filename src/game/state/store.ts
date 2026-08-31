@@ -10,6 +10,7 @@ import type {
   ConnectionNodeType,
   InvestigationEvent,
   InvestigationEventType,
+  ActorType,
 } from '@/game/types';
 import { THE_GALLERY_MURDER } from '@/game/data/galleryMurder';
 
@@ -71,7 +72,7 @@ interface GameActions {
   recordInterview: (entry: Omit<InterviewEntry, 'id'>) => void;
 
   // Notes
-  addNote: (content: string, author: 'player' | 'agent') => void;
+  addNote: (content: string, author: ActorType) => void;
   deleteNote: (noteId: string) => void;
 
   // Case board connections
@@ -81,6 +82,7 @@ interface GameActions {
     toId: string,
     toType: ConnectionNodeType,
     label?: string,
+    author?: ActorType,
   ) => void;
   removeConnection: (connectionId: string) => void;
 
@@ -101,12 +103,14 @@ function makeEvent(
   type: InvestigationEventType,
   description: string,
   relatedId?: string,
+  actor: ActorType = 'human',
 ): InvestigationEvent {
   return {
     id: crypto.randomUUID(),
     type,
     description,
     timestamp: Date.now(),
+    actor,
     relatedId,
   };
 }
@@ -160,7 +164,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       const newDiscovered = new Set([...state.discoveredEvidenceIds]);
 
       const newLogEntries: InvestigationEvent[] = [
-        makeEvent('location_visited', `Visited ${location?.name ?? locationId}`, locationId),
+        makeEvent('location_visited', `Visited ${location?.name ?? locationId}`, locationId, 'human'),
       ];
 
       if (location) {
@@ -169,7 +173,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
             newDiscovered.add(eid);
             const ev = state.activeCase.evidence.find((e) => e.id === eid);
             newLogEntries.push(
-              makeEvent('evidence_discovered', `Discovered: ${ev?.name ?? eid}`, eid),
+              makeEvent('evidence_discovered', `Discovered: ${ev?.name ?? eid}`, eid, 'human'),
             );
           }
         });
@@ -192,7 +196,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
         discoveredEvidenceIds: new Set([...state.discoveredEvidenceIds, evidenceId]),
         investigationLog: [
           ...state.investigationLog,
-          makeEvent('evidence_discovered', `Discovered: ${ev?.name ?? evidenceId}`, evidenceId),
+          makeEvent('evidence_discovered', `Discovered: ${ev?.name ?? evidenceId}`, evidenceId, 'human'),
         ],
       };
     }),
@@ -205,7 +209,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
         ? state.investigationLog
         : [
             ...state.investigationLog,
-            makeEvent('evidence_inspected', `Inspected: ${ev?.name ?? evidenceId}`, evidenceId),
+            makeEvent('evidence_inspected', `Inspected: ${ev?.name ?? evidenceId}`, evidenceId, 'human'),
           ];
 
       return {
@@ -220,16 +224,18 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
     set((state) => {
       const suspect = state.activeCase.suspects.find((s) => s.id === entry.suspectId);
       const firstInterview = !state.interviewedSuspectIds.has(entry.suspectId);
+      const actor = entry.author ?? 'human';
 
-      const newEntry: InterviewEntry = { ...entry, id: crypto.randomUUID() };
+      const newEntry: InterviewEntry = { ...entry, author: actor, id: crypto.randomUUID() };
 
       const newLog: InvestigationEvent[] = [...state.investigationLog];
       if (firstInterview) {
         newLog.push(
           makeEvent(
             'suspect_interviewed',
-            `Interviewed ${suspect?.name ?? entry.suspectId}`,
+            `${actor === 'agent' ? 'AGENT' : 'YOU'} interviewed ${suspect?.name ?? entry.suspectId}`,
             entry.suspectId,
+            actor,
           ),
         );
       }
@@ -252,13 +258,15 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
         ...state.notes,
         { id: crypto.randomUUID(), content, author, timestamp: Date.now() },
       ],
-      investigationLog:
-        author === 'player'
-          ? [
-              ...state.investigationLog,
-              makeEvent('note_added', `Note added: "${content.slice(0, 40)}..."`),
-            ]
-          : state.investigationLog,
+      investigationLog: [
+        ...state.investigationLog,
+        makeEvent(
+          'note_added',
+          `${author === 'agent' ? 'AGENT' : 'YOU'} added a note: "${content.slice(0, 35)}..."`,
+          undefined,
+          author,
+        ),
+      ],
     })),
 
   deleteNote: (noteId) =>
@@ -268,7 +276,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
 
   // ── Case Board ─────────────────────────────────────────────────────────────
 
-  addConnection: (fromId, fromType, toId, toType, label) =>
+  addConnection: (fromId, fromType, toId, toType, label, author = 'human') =>
     set((state) => {
       const exists = state.connections.some(
         (c) =>
@@ -284,6 +292,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
         toId,
         toType,
         label,
+        author,
         timestamp: Date.now(),
       };
 
@@ -291,7 +300,12 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
         connections: [...state.connections, connection],
         investigationLog: [
           ...state.investigationLog,
-          makeEvent('connection_made', `Linked ${fromId} ↔ ${toId}`, connection.id),
+          makeEvent(
+            'connection_made',
+            `${author === 'agent' ? 'AGENT' : 'YOU'} linked ${fromId} ↔ ${toId}`,
+            connection.id,
+            author,
+          ),
         ],
       };
     }),
@@ -301,7 +315,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       connections: state.connections.filter((c) => c.id !== connectionId),
       investigationLog: [
         ...state.investigationLog,
-        makeEvent('connection_removed', `Connection removed`, connectionId),
+        makeEvent('connection_removed', `Connection removed`, connectionId, 'human'),
       ],
     })),
 
@@ -315,14 +329,13 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
         timestamp: Date.now(),
       };
 
-      // Also append to global investigation log
-      const eventMsg = `[WebMCP] ${action.tool} executed (${JSON.stringify(action.parameters)})`;
+      const summaryText = action.summary ?? `[WebMCP] ${action.tool} executed`;
 
       return {
         agentActions: [...state.agentActions, newAction],
         investigationLog: [
           ...state.investigationLog,
-          makeEvent('agent_tool_call', eventMsg, newAction.id),
+          makeEvent('agent_tool_call', `AGENT ${summaryText}`, newAction.id, 'agent'),
         ],
       };
     }),
@@ -332,7 +345,12 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       agentHypothesis: hypothesis,
       investigationLog: [
         ...state.investigationLog,
-        makeEvent('agent_hypothesis', `Agent Hypothesis Updated: "${hypothesis.slice(0, 50)}..."`),
+        makeEvent(
+          'agent_hypothesis',
+          `AGENT updated hypothesis: "${hypothesis.slice(0, 45)}..."`,
+          undefined,
+          'agent',
+        ),
       ],
     })),
 

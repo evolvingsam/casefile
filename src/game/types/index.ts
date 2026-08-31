@@ -5,6 +5,7 @@ export type SuspectId = string;
 export type LocationId = string;
 export type ConnectionId = string;
 export type InvestigationEventId = string;
+export type ActorType = 'human' | 'agent';
 
 // ─── Suspect ──────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,7 @@ export interface BoardConnection {
   toType: ConnectionNodeType;
   label?: string;
   timestamp: number;
+  author?: ActorType;
 }
 
 // ─── Investigation Log ────────────────────────────────────────────────────────
@@ -133,6 +135,7 @@ export interface InvestigationEvent {
   type: InvestigationEventType;
   description: string;
   timestamp: number;
+  actor: ActorType;
   relatedId?: string;
 }
 
@@ -148,6 +151,20 @@ export interface InvestigationProgress {
   timelineEventsTotal: number;
   contradictionsFound: number;
   completionPercent: number;
+}
+
+// ─── Agent Recommendation ────────────────────────────────────────────────────
+
+export interface AgentRecommendation {
+  suspectId: SuspectId;
+  suspectName: string;
+  confidence: 'Low' | 'Moderate' | 'High' | 'Conclusive';
+  confidencePercentage: number;
+  reasoning: string;
+  supportingEvidenceIds: EvidenceId[];
+  supportingEvidenceNames: string[];
+  contradictionSummary?: string;
+  recommendedAction: string;
 }
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
@@ -174,6 +191,7 @@ export interface InterviewEntry {
   question: string;
   response: string;
   timestamp: number;
+  author?: ActorType;
 }
 
 export type AgentEventKind =
@@ -198,6 +216,6 @@ export interface AgentAction {
 export interface CaseNote {
   id: string;
   content: string;
-  author: 'player' | 'agent';
+  author: ActorType;
   timestamp: number;
 }

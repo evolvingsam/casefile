@@ -1,6 +1,7 @@
 'use client';
 
 import { useGameStore } from '@/game/state/store';
+import { AgentRecommendationCard } from '@/components/game/AgentRecommendationCard';
 
 export function OverviewView() {
   const activeCase = useGameStore((s) => s.activeCase);
@@ -41,7 +42,7 @@ export function OverviewView() {
   ];
 
   return (
-    <div className="p-8 animate-fade-in space-y-8">
+    <div className="p-6 md:p-8 animate-fade-in space-y-8">
       {/* Case header */}
       <div>
         <div className="flex items-center gap-3 mb-3">
@@ -99,6 +100,9 @@ export function OverviewView() {
         </div>
       </div>
 
+      {/* AI Recommendation Card */}
+      <AgentRecommendationCard />
+
       {/* Briefing */}
       <div className="card p-6">
         <h3
@@ -117,7 +121,7 @@ export function OverviewView() {
         {stats.map((stat) => (
           <button
             key={stat.label}
-            className="card card-interactive p-4 text-center"
+            className="card card-interactive p-4 text-center cursor-pointer"
             onClick={() => setActiveView(stat.view)}
           >
             <div
@@ -137,19 +141,6 @@ export function OverviewView() {
             </div>
           </button>
         ))}
-      </div>
-
-      {/* Hint */}
-      <div
-        className="rounded-md p-4 text-sm"
-        style={{
-          background: 'oklch(75% 0.18 75 / 0.05)',
-          border: '1px solid oklch(75% 0.18 75 / 0.15)',
-          color: 'var(--color-text-secondary)',
-        }}
-      >
-        <span style={{ color: 'var(--color-amber)' }}>↑</span>{' '}
-        Visit every location. Inspect every piece of evidence. Question every suspect. The answer is hidden in the details.
       </div>
     </div>
   );

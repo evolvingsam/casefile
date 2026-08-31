@@ -15,11 +15,13 @@ import type {
   LocationId,
   InterviewEntry,
   BoardConnection,
+  AgentRecommendation,
+  ActorType,
+  InvestigationProgress,
 } from '@/game/types';
 
 // ─── Location Queries ─────────────────────────────────────────────────────────
 
-/** Return all evidence discoverable from a location. */
 export function getLocationEvidence(
   caseData: Case,
   locationId: LocationId,
@@ -31,7 +33,6 @@ export function getLocationEvidence(
     .filter((e): e is Evidence => e !== undefined);
 }
 
-/** Count how many of a location's evidence items have been discovered. */
 export function locationDiscoveryProgress(
   caseData: Case,
   locationId: LocationId,
@@ -45,7 +46,6 @@ export function locationDiscoveryProgress(
 
 // ─── Evidence Queries ─────────────────────────────────────────────────────────
 
-/** Determine the display status of a piece of evidence. */
 export type EvidenceStatus = 'undiscovered' | 'discovered' | 'inspected';
 
 export function getEvidenceStatus(
@@ -58,7 +58,6 @@ export function getEvidenceStatus(
   return 'undiscovered';
 }
 
-/** Return all discovered evidence objects, sorted by location order. */
 export function getDiscoveredEvidence(
   caseData: Case,
   discoveredEvidenceIds: Set<EvidenceId>,
@@ -66,7 +65,6 @@ export function getDiscoveredEvidence(
   return caseData.evidence.filter((e) => discoveredEvidenceIds.has(e.id));
 }
 
-/** Return evidence items related to a given piece of evidence (discovered only). */
 export function getRelatedEvidence(
   caseData: Case,
   evidenceId: EvidenceId,
@@ -80,7 +78,6 @@ export function getRelatedEvidence(
     .filter((e): e is Evidence => e !== undefined);
 }
 
-/** Return suspects linked to a piece of evidence (already known to the player). */
 export function getEvidenceSuspects(
   caseData: Case,
   evidenceId: EvidenceId,
@@ -94,10 +91,6 @@ export function getEvidenceSuspects(
 
 // ─── Suspect Queries ──────────────────────────────────────────────────────────
 
-/**
- * Build a "known facts" summary for a suspect, given current investigation state.
- * Only surfaces information the player has legitimately earned.
- */
 export interface KnownSuspectInfo {
   suspect: Suspect;
   isInterviewed: boolean;
@@ -123,7 +116,6 @@ export function getKnownSuspectInfo(
 
   const interviewHistory = interviews.filter((i) => i.suspectId === suspectId);
 
-  // A contradiction exists when: we've discovered evidence that contradicts their timeline event
   const hasContradiction = caseData.timeline.some(
     (event) =>
       event.isContradiction &&
@@ -141,24 +133,8 @@ export function getKnownSuspectInfo(
   };
 }
 
-/** Return all suspects that have been linked to discovered evidence. */
-export function getSuspectsWithEvidence(
-  caseData: Case,
-  discoveredEvidenceIds: Set<EvidenceId>,
-): Suspect[] {
-  return caseData.suspects.filter((s) =>
-    s.relatedEvidenceIds.some((eid) => discoveredEvidenceIds.has(eid)),
-  );
-}
-
 // ─── Timeline Queries ─────────────────────────────────────────────────────────
 
-/**
- * A timeline event is visible when:
- * - It is marked `alwaysVisible`, OR
- * - Any of its related evidence has been discovered, OR
- * - Any of its related suspects has been interviewed
- */
 export function isTimelineEventVisible(
   event: Case['timeline'][number],
   discoveredEvidenceIds: Set<EvidenceId>,
@@ -182,7 +158,6 @@ export function getVisibleTimelineEvents(
 
 // ─── Case Board Queries ───────────────────────────────────────────────────────
 
-/** Check whether a specific connection already exists. */
 export function connectionExists(
   connections: BoardConnection[],
   fromId: string,
@@ -195,29 +170,7 @@ export function connectionExists(
   );
 }
 
-/** Get all connections involving a given node (evidence or suspect). */
-export function getNodeConnections(
-  connections: BoardConnection[],
-  nodeId: string,
-): BoardConnection[] {
-  return connections.filter((c) => c.fromId === nodeId || c.toId === nodeId);
-}
-
 // ─── Overall Progress ─────────────────────────────────────────────────────────
-
-export interface InvestigationProgress {
-  locationsVisited: number;
-  locationsTotal: number;
-  evidenceDiscovered: number;
-  evidenceTotal: number;
-  evidenceInspected: number;
-  suspectsInterviewed: number;
-  suspectsTotal: number;
-  timelineEventsVisible: number;
-  timelineEventsTotal: number;
-  contradictionsFound: number;
-  completionPercent: number;
-}
 
 export function getInvestigationProgress(
   caseData: Case,
@@ -262,5 +215,79 @@ export function getInvestigationProgress(
     timelineEventsTotal: caseData.timeline.length,
     contradictionsFound,
     completionPercent,
+  };
+}
+
+// ─── Agent Recommendation Logic ──────────────────────────────────────────────
+
+export function getAgentRecommendation(
+  caseData: Case,
+  discoveredEvidenceIds: Set<EvidenceId>,
+  inspectedEvidenceIds: Set<EvidenceId>,
+  interviewedSuspectIds: Set<SuspectId>,
+): AgentRecommendation {
+  const solution = caseData.solution;
+  const killer = caseData.suspects.find((s) => s.id === solution.killerId);
+
+  const victoriaKeyClues = [
+    'keycard-log',
+    'cyanide-vial',
+    'pharmacy-order',
+    'cctv-gap',
+    'side-door-log',
+    'divorce-filing',
+    'will-amendment',
+    'cash-deposit',
+  ];
+
+  const victoriaFound = victoriaKeyClues.filter((eid) => discoveredEvidenceIds.has(eid));
+  const foundCount = victoriaFound.length;
+
+  let confidence: 'Low' | 'Moderate' | 'High' | 'Conclusive' = 'Low';
+  let percentage = 35;
+
+  if (foundCount >= 6) {
+    confidence = 'Conclusive';
+    percentage = 98;
+  } else if (foundCount >= 4) {
+    confidence = 'High';
+    percentage = 85;
+  } else if (foundCount >= 2) {
+    confidence = 'Moderate';
+    percentage = 62;
+  } else {
+    confidence = 'Low';
+    percentage = 35;
+  }
+
+  const supportingNames = victoriaFound
+    .map((eid) => caseData.evidence.find((e) => e.id === eid)?.name)
+    .filter((n): n is string => n !== undefined);
+
+  let contradictionSummary = undefined;
+  if (discoveredEvidenceIds.has('keycard-log')) {
+    contradictionSummary =
+      "Victoria's statement claims she remained in the main gallery all evening, but keycard log confirms entry to private office at 10:19 PM.";
+  }
+
+  let reasoning =
+    'Based on financial motive (divorce filing, will amendment) and physical evidence (keycard log entry at 10:19 PM, cyanide vial batch matching her clinic, 8-minute CCTV corridor gap).';
+
+  if (foundCount < 2) {
+    reasoning =
+      'Preliminary analysis: Victoria Adeyemi had direct access to pharmaceutical supply and stands to lose her estate in the pending divorce. Further evidence required.';
+  }
+
+  return {
+    suspectId: killer?.id ?? 'victoria-adeyemi',
+    suspectName: killer?.name ?? 'Victoria Adeyemi',
+    confidence,
+    confidencePercentage: percentage,
+    reasoning,
+    supportingEvidenceIds: victoriaFound,
+    supportingEvidenceNames: supportingNames.length > 0 ? supportingNames : ['Divorce petition draft'],
+    contradictionSummary,
+    recommendedAction:
+      'Review supporting evidence and submit formal accusation when ready. Human confirmation required.',
   };
 }
