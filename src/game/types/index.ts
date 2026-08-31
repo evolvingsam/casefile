@@ -70,10 +70,6 @@ export interface TimelineEvent {
   evidenceIds: EvidenceId[];
   isContradiction: boolean;
   contradictsSuspectId?: SuspectId;
-  /**
-   * If true, this event is always visible (public knowledge, e.g., the body was found).
-   * If false, it is only revealed when related evidence/suspects are known.
-   */
   alwaysVisible?: boolean;
 }
 
@@ -135,7 +131,21 @@ export interface InvestigationEvent {
   type: InvestigationEventType;
   description: string;
   timestamp: number;
-  relatedId?: string; // the entity that was acted on
+  relatedId?: string;
+}
+
+export interface InvestigationProgress {
+  locationsVisited: number;
+  locationsTotal: number;
+  evidenceDiscovered: number;
+  evidenceTotal: number;
+  evidenceInspected: number;
+  suspectsInterviewed: number;
+  suspectsTotal: number;
+  timelineEventsVisible: number;
+  timelineEventsTotal: number;
+  contradictionsFound: number;
+  completionPercent: number;
 }
 
 // ─── Navigation ───────────────────────────────────────────────────────────────

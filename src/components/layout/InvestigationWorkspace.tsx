@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useGameStore } from '@/game/state/store';
+import { registerWebMCP } from '@/webmcp/register';
 import { WorkspaceSidebar } from '@/components/layout/WorkspaceSidebar';
 import { OverviewView }   from '@/components/game/OverviewView';
 import { LocationsView }  from '@/components/game/LocationsView';
@@ -29,6 +31,11 @@ function ViewRouter() {
 export function InvestigationWorkspace() {
   const setPhase = useGameStore((s) => s.setPhase);
   const activeCase = useGameStore((s) => s.activeCase);
+
+  // Register WebMCP tools when workspace mounts
+  useEffect(() => {
+    registerWebMCP();
+  }, []);
 
   return (
     <div
@@ -71,14 +78,15 @@ export function InvestigationWorkspace() {
 
         <div className="flex items-center gap-3">
           <span
-            className="text-xs px-2 py-1 rounded font-mono"
+            className="text-xs px-2.5 py-1 rounded font-mono flex items-center gap-1.5"
             style={{
-              background: 'oklch(52% 0.22 18 / 0.1)',
-              color: 'var(--color-crimson)',
-              border: '1px solid oklch(52% 0.22 18 / 0.2)',
+              background: 'oklch(75% 0.18 75 / 0.1)',
+              color: 'var(--color-amber)',
+              border: '1px solid oklch(75% 0.18 75 / 0.25)',
             }}
           >
-            OPEN INVESTIGATION
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            WEBMCP ACTIVE (9 TOOLS)
           </span>
 
           <Button
