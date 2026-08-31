@@ -197,7 +197,7 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'get_case_state',
     description:
-      'Returns the current investigation state relevant to an AI agent, including discovered evidence, known suspects, interview count, timeline progress, and objective. Does NOT reveal the solution.',
+      'Retrieve high-level investigation summary including case title, victim details, current objective, count of discovered evidence, list of known suspects, and overall progress percentage. Use this tool at the beginning of an investigation or to refresh case context. Constraints: Does NOT leak killer identity or hidden solution.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -210,13 +210,13 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'search_evidence',
     description:
-      'Search physical & digital evidence by query string. Categorizes items into discovered, discoverable (in visited locations), and inaccessible.',
+      'Search discovered and discoverable evidence using keywords (e.g., "whiskey", "cyanide", "keycard", "cctv", "letter") or empty string to list all. Returns structured list of discovered clues, discoverable items in visited locations, and count of inaccessible items in unvisited areas. Use when searching for physical or forensic proof connected to a suspect, location, or event.',
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'Search term or keyword (e.g., "whiskey", "letter", "cctv"). Pass empty string to list all.',
+          description: 'Search term or keyword (e.g., "whiskey", "letter", "cctv", "divorce"). Pass empty string to list all currently accessible evidence.',
         },
       },
       required: ['query'],
@@ -231,13 +231,13 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'inspect_evidence',
     description:
-      'Examine a specific piece of evidence in detail. Updates the shared investigation state and returns forensic findings, related suspects, and hidden significance.',
+      'Perform detailed forensic inspection on a specific evidence item by ID (e.g., "whiskey-glass", "cyanide-vial", "keycard-log", "cctv-gap"). Updates the shared investigation state and returns detailed forensic findings, batch origins, related suspect links, corroborating clues, and hidden significance. Use when analyzing a clue in depth.',
     inputSchema: {
       type: 'object',
       properties: {
         evidence_id: {
           type: 'string',
-          description: 'Unique evidence ID (e.g., "whiskey-glass", "cyanide-vial", "keycard-log").',
+          description: 'Unique evidence ID string (e.g., "whiskey-glass", "cyanide-vial", "keycard-log", "pharmacy-order", "divorce-filing").',
         },
       },
       required: ['evidence_id'],
@@ -254,13 +254,13 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'search_locations',
     description:
-      'List or search investigation locations (crime scene, office, courtyard, etc.) and check visitation status and clue counts.',
+      'List or search investigation locations (e.g., "Main Gallery", "Private Office", "Storage Room", "Courtyard", "Security Room"). Returns location visitation status, investigator notes for visited areas, and undiscovered clue counts. Use when deciding which physical area of the gallery to explore next.',
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'Optional location name or keyword search. Pass empty string to list all locations.',
+          description: 'Optional location keyword (e.g., "office", "gallery", "security"). Pass empty string to retrieve all 5 locations.',
         },
       },
       required: ['query'],
@@ -275,7 +275,7 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'get_suspects',
     description:
-      'Returns all 5 suspects connected to the victim along with their current interview status and statement contradiction alerts.',
+      'Retrieve structured directory of all 5 persons of interest (Marcus Cole, Sarah Okafor, James Bello, Victoria Adeyemi, Michael Grant). Includes occupations, relationships to victim, interview completion status, and statement contradiction alerts. Use when evaluating who had motive or opportunity.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -288,13 +288,13 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'get_suspect_profile',
     description:
-      'Get full dossier for a suspect including background, stated alibi, surface motive, statement contradiction alerts, linked evidence, and available interview questions.',
+      'Get comprehensive dossier for a specific suspect by ID (e.g., "victoria-adeyemi", "marcus-cole"). Returns background, stated alibi, surface motive, initial statement, list of linked evidence, interview transcript history, and available/locked interrogation question IDs. Use before questioning a suspect or cross-referencing their alibi.',
     inputSchema: {
       type: 'object',
       properties: {
         suspect_id: {
           type: 'string',
-          description: 'Unique suspect ID (e.g., "victoria-adeyemi", "marcus-cole", "james-bello").',
+          description: 'Unique suspect ID (e.g., "victoria-adeyemi", "marcus-cole", "james-bello", "sarah-okafor", "michael-grant").',
         },
       },
       required: ['suspect_id'],
@@ -311,17 +311,17 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'interview_suspect',
     description:
-      'Interrogate a suspect by asking a question topic or question ID. Returns a deterministic response based on case state and records the Q&A in the shared investigation log.',
+      'Interrogate a suspect by asking a specific question ID (e.g., "va-q1", "va-q4") or topic keyword (e.g., "keycard", "cyanide", "divorce", "cctv"). Returns deterministic, case-specific response and records the entry in the shared investigation log. Note: Certain advanced questions require discovering related evidence first.',
     inputSchema: {
       type: 'object',
       properties: {
         suspect_id: {
           type: 'string',
-          description: 'Unique suspect ID (e.g., "victoria-adeyemi", "michael-grant").',
+          description: 'Unique suspect ID (e.g., "victoria-adeyemi", "michael-grant", "sarah-okafor").',
         },
         question: {
           type: 'string',
-          description: 'Question ID (e.g., "va-q1") or question keyword/topic (e.g., "keycard", "divorce", "cyanide").',
+          description: 'Question ID (e.g., "va-q1", "va-q4") or question topic keyword (e.g., "keycard", "divorce", "cyanide").',
         },
       },
       required: ['suspect_id', 'question'],
@@ -341,7 +341,7 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'build_timeline',
     description:
-      'Returns the reconstructed timeline of events on the night of the murder. Highlights confirmed events, statement contradictions, and missing time windows.',
+      'Reconstruct the chronological timeline of events on the night of the murder based strictly on discovered evidence and interview responses. Identifies confirmed events, suspect movements, time of death, statement contradictions (e.g., alibi vs keycard log), and missing unverified time slots. Use when establishing window of opportunity.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -354,7 +354,7 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'submit_accusation',
     description:
-      'Formally recommend an accusation against a suspect with supporting reasoning. Evaluates the accusation against the case solution, checks supporting evidence, and records the outcome.',
+      'Formally submit an investigative recommendation or accusation against a suspect with supporting reasoning. Evaluates your deduction against the case solution, checks key supporting evidence found vs missing, and records the formal verdict. Use when you have gathered sufficient proof to identify the killer.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -364,7 +364,7 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
         },
         reasoning: {
           type: 'string',
-          description: 'Detailed deduction and supporting evidence explaining why this suspect is the killer.',
+          description: 'Detailed deduction explaining motive, method, opportunity, and supporting evidence.',
         },
       },
       required: ['suspect_id', 'reasoning'],
