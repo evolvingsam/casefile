@@ -4,10 +4,12 @@
  * WebMCP Tool Definitions & Handlers for Casefile.
  *
  * Exposes 9 structured WebMCP tools operating on the shared gameService.
+ * Each invocation records a rich event into the shared Zustand store.
  */
 
 import { gameService } from '@/game/services/gameService';
 import { useGameStore } from '@/game/state/store';
+import type { AgentEventKind } from '@/game/types';
 
 export interface WebMCPToolDefinition {
   name: string;
@@ -20,6 +22,121 @@ export interface WebMCPToolDefinition {
   handler: (params: Record<string, any>) => Promise<any> | any;
 }
 
+// Compute dynamic agent hypothesis based on discovered evidence
+function computeAgentHypothesis(): string {
+  const store = useGameStore.getState();
+  const caseData = store.activeCase;
+  const discovered = store.discoveredEvidenceIds;
+  const inspected = store.inspectedEvidenceIds;
+
+  const hasCyanide = inspected.has('cyanide-vial') || inspected.has('pharmacy-order');
+  const hasKeycard = inspected.has('keycard-log');
+  const hasCctvGap = inspected.has('cctv-gap');
+  const hasMarcusArg = discovered.has('cctv-argument');
+  const hasJamesTransfers = discovered.has('bank-transfer');
+
+  if (hasCyanide && hasKeycard && hasCctvGap) {
+    return 'HIGH CONFIDENCE: Victoria Adeyemi is the prime suspect. Poison traced to her clinic (cyanide-vial), keycard places her in office at 10:19 PM, and CCTV gap was paid for via Michael Grant (£3,000 cash deposit).';
+  }
+
+  if (hasCyanide || hasKeycard) {
+    return 'MODERATE CONFIDENCE: Investigating Victoria Adeyemi. Keycard log contradicts her alibi and chemical evidence points toward pharmaceutical supply access.';
+  }
+
+  if (hasJamesTransfers) {
+    return 'PRELIMINARY HYPOTHESIS: James Bello has strong financial motive (£160k embezzlement), but his main gallery alibi is corroborated by multiple witnesses. Testing for alternative suspects.';
+  }
+
+  if (hasMarcusArg) {
+    return 'PRELIMINARY HYPOTHESIS: Marcus Cole had a heated argument at 8:45 PM over painting forgery, but CCTV confirms he exited by cab at 9:28 PM before the murder window.';
+  }
+
+  return 'INITIAL HYPOTHESIS: Gathering evidence across gallery locations and questioning all 5 persons of interest to establish timeline and opportunity.';
+}
+
+// Generate human-readable summary & classification for agent activity panel
+function summarizeResult(tool: string, params: Record<string, any>, result: any): {
+  summary: string;
+  kind: AgentEventKind;
+  status: 'success' | 'warning' | 'error';
+} {
+  if (tool === 'search_evidence') {
+    const count = result.discovered?.length ?? 0;
+    return {
+      summary: `Searched evidence for "${params.query || 'all'}" — ${count} items discovered`,
+      kind: count > 0 ? 'discovery' : 'tool_call',
+      status: 'success',
+    };
+  }
+
+  if (tool === 'inspect_evidence') {
+    const isRedHerring = result.isRedHerring;
+    return {
+      summary: `Inspected [${result.name}]: ${result.detailedDescription?.slice(0, 70)}...`,
+      kind: isRedHerring ? 'warning' : 'discovery',
+      status: isRedHerring ? 'warning' : 'success',
+    };
+  }
+
+  if (tool === 'search_locations') {
+    return {
+      summary: `Examined location directory for "${params.query || 'all'}" — ${result.locations?.length ?? 0} locations evaluated`,
+      kind: 'tool_call',
+      status: 'success',
+    };
+  }
+
+  if (tool === 'get_suspects') {
+    const contradictions = result.suspects?.filter((s: any) => s.hasContradictionAlert)?.length ?? 0;
+    return {
+      summary: `Evaluated 5 suspects — ${contradictions} statement contradictions flagged`,
+      kind: contradictions > 0 ? 'warning' : 'tool_call',
+      status: contradictions > 0 ? 'warning' : 'success',
+    };
+  }
+
+  if (tool === 'get_suspect_profile') {
+    const isContradicted = result.hasStatementContradiction;
+    return {
+      summary: `Examined profile of ${result.name} — ${isContradicted ? '⚡ Statement Contradiction Found' : 'Alibi logged'}`,
+      kind: isContradicted ? 'warning' : 'tool_call',
+      status: isContradicted ? 'warning' : 'success',
+    };
+  }
+
+  if (tool === 'interview_suspect') {
+    return {
+      summary: `Interviewed ${result.suspectName}: "${result.response?.slice(0, 60)}..."`,
+      kind: 'tool_call',
+      status: 'success',
+    };
+  }
+
+  if (tool === 'build_timeline') {
+    const contradictions = result.contradictionsFound?.length ?? 0;
+    return {
+      summary: `Reconstructed timeline (${result.reconstructedEventsCount}/${result.totalTimelineEvents} events) — ${contradictions} contradictions detected`,
+      kind: contradictions > 0 ? 'warning' : 'tool_call',
+      status: contradictions > 0 ? 'warning' : 'success',
+    };
+  }
+
+  if (tool === 'submit_accusation') {
+    const isCorrect = result.isCorrect;
+    return {
+      summary: `Submitted Accusation against ${result.accusation?.accusedSuspectName}: ${result.verdict}`,
+      kind: isCorrect ? 'hypothesis' : 'warning',
+      status: isCorrect ? 'success' : 'error',
+    };
+  }
+
+  return {
+    summary: `Executed ${tool}`,
+    kind: 'tool_call',
+    status: 'success',
+  };
+}
+
 // Helper to wrap handlers with error handling & agent activity logging
 function createToolHandler(
   name: string,
@@ -28,14 +145,23 @@ function createToolHandler(
   return (params: Record<string, any>) => {
     try {
       const result = fn(params);
+      const { summary, kind, status } = summarizeResult(name, params, result);
+      const hypothesis = computeAgentHypothesis();
 
-      // Log execution in shared Zustand state so UI displays agent activity live
+      // Update agent hypothesis in Zustand store
+      useGameStore.getState().setAgentHypothesis(hypothesis);
+
+      // Log execution in shared Zustand state for live UI activity panel
       useGameStore.getState().logAgentAction({
         tool: name,
         parameters: Object.fromEntries(
           Object.entries(params || {}).map(([k, v]) => [k, String(v)]),
         ),
-        result: typeof result === 'object' ? JSON.stringify(result).slice(0, 150) + '...' : String(result),
+        result: typeof result === 'object' ? JSON.stringify(result).slice(0, 160) + '...' : String(result),
+        summary,
+        kind,
+        status,
+        hypothesis,
       });
 
       return {
@@ -51,6 +177,9 @@ function createToolHandler(
           Object.entries(params || {}).map(([k, v]) => [k, String(v)]),
         ),
         result: `ERROR: ${errorMessage}`,
+        summary: `Error in ${name}: ${errorMessage}`,
+        kind: 'warning',
+        status: 'error',
       });
 
       return {

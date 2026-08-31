@@ -25,20 +25,23 @@ interface GameState {
   inspectedEvidenceIds: Set<string>;
   interviewedSuspectIds: Set<string>;
 
-  // Interview history (full entries with questionId)
+  // Interview history
   interviews: InterviewEntry[];
 
   // Case notes
   notes: CaseNote[];
 
-  // Case board connections (player-authored)
+  // Case board connections
   connections: BoardConnection[];
 
-  // Investigation event log (all player actions in order)
+  // Investigation event log
   investigationLog: InvestigationEvent[];
 
   // Agent actions
   agentActions: AgentAction[];
+
+  // Current agent hypothesis
+  agentHypothesis: string | null;
 
   // Workspace nav
   activeView: WorkspaceView;
@@ -83,11 +86,12 @@ interface GameActions {
 
   // Agent actions
   logAgentAction: (action: Omit<AgentAction, 'id' | 'timestamp'>) => void;
+  setAgentHypothesis: (hypothesis: string) => void;
 
   // Accusation
   makeAccusation: (suspectId: string) => void;
 
-  // Reset (for replay)
+  // Reset
   resetInvestigation: () => void;
 }
 
@@ -120,6 +124,7 @@ const INITIAL_STATE: Omit<GameState, 'activeCase'> = {
   connections: [],
   investigationLog: [],
   agentActions: [],
+  agentHypothesis: null,
   activeView: 'overview',
   accusation: null,
 };
@@ -147,7 +152,6 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
   visitLocation: (locationId) =>
     set((state) => {
       if (state.visitedLocationIds.has(locationId)) {
-        // Re-visiting — no state change beyond keeping it visited
         return {};
       }
 
@@ -156,11 +160,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       const newDiscovered = new Set([...state.discoveredEvidenceIds]);
 
       const newLogEntries: InvestigationEvent[] = [
-        makeEvent(
-          'location_visited',
-          `Visited ${location?.name ?? locationId}`,
-          locationId,
-        ),
+        makeEvent('location_visited', `Visited ${location?.name ?? locationId}`, locationId),
       ];
 
       if (location) {
@@ -205,11 +205,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
         ? state.investigationLog
         : [
             ...state.investigationLog,
-            makeEvent(
-              'evidence_inspected',
-              `Inspected: ${ev?.name ?? evidenceId}`,
-              evidenceId,
-            ),
+            makeEvent('evidence_inspected', `Inspected: ${ev?.name ?? evidenceId}`, evidenceId),
           ];
 
       return {
@@ -274,7 +270,6 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
 
   addConnection: (fromId, fromType, toId, toType, label) =>
     set((state) => {
-      // Prevent duplicate connections
       const exists = state.connections.some(
         (c) =>
           (c.fromId === fromId && c.toId === toId) ||
@@ -296,11 +291,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
         connections: [...state.connections, connection],
         investigationLog: [
           ...state.investigationLog,
-          makeEvent(
-            'connection_made',
-            `Linked ${fromId} ↔ ${toId}`,
-            connection.id,
-          ),
+          makeEvent('connection_made', `Linked ${fromId} ↔ ${toId}`, connection.id),
         ],
       };
     }),
@@ -317,10 +308,31 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
   // ── Agent ──────────────────────────────────────────────────────────────────
 
   logAgentAction: (action) =>
+    set((state) => {
+      const newAction: AgentAction = {
+        ...action,
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+      };
+
+      // Also append to global investigation log
+      const eventMsg = `[WebMCP] ${action.tool} executed (${JSON.stringify(action.parameters)})`;
+
+      return {
+        agentActions: [...state.agentActions, newAction],
+        investigationLog: [
+          ...state.investigationLog,
+          makeEvent('agent_tool_call', eventMsg, newAction.id),
+        ],
+      };
+    }),
+
+  setAgentHypothesis: (hypothesis) =>
     set((state) => ({
-      agentActions: [
-        ...state.agentActions,
-        { ...action, id: crypto.randomUUID(), timestamp: Date.now() },
+      agentHypothesis: hypothesis,
+      investigationLog: [
+        ...state.investigationLog,
+        makeEvent('agent_hypothesis', `Agent Hypothesis Updated: "${hypothesis.slice(0, 50)}..."`),
       ],
     })),
 
@@ -337,21 +349,3 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
       activeCase: get().activeCase,
     }),
 }));
-
-// ─── Selector hooks (convenience) ─────────────────────────────────────────────
-
-export const selectActiveCase = (s: GameState & GameActions) => s.activeCase;
-export const selectPhase = (s: GameState & GameActions) => s.phase;
-export const selectDiscoveredEvidence = (s: GameState & GameActions) =>
-  s.discoveredEvidenceIds;
-export const selectInspectedEvidence = (s: GameState & GameActions) =>
-  s.inspectedEvidenceIds;
-export const selectVisitedLocations = (s: GameState & GameActions) =>
-  s.visitedLocationIds;
-export const selectInterviews = (s: GameState & GameActions) => s.interviews;
-export const selectInterviewedSuspects = (s: GameState & GameActions) =>
-  s.interviewedSuspectIds;
-export const selectConnections = (s: GameState & GameActions) => s.connections;
-export const selectNotes = (s: GameState & GameActions) => s.notes;
-export const selectInvestigationLog = (s: GameState & GameActions) =>
-  s.investigationLog;

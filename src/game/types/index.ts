@@ -124,7 +124,9 @@ export type InvestigationEventType =
   | 'suspect_interviewed'
   | 'connection_made'
   | 'connection_removed'
-  | 'note_added';
+  | 'note_added'
+  | 'agent_tool_call'
+  | 'agent_hypothesis';
 
 export interface InvestigationEvent {
   id: InvestigationEventId;
@@ -174,12 +176,23 @@ export interface InterviewEntry {
   timestamp: number;
 }
 
+export type AgentEventKind =
+  | 'tool_call'
+  | 'result'
+  | 'discovery'
+  | 'warning'
+  | 'hypothesis';
+
 export interface AgentAction {
   id: string;
   tool: string;
   parameters: Record<string, string>;
   result: string;
   timestamp: number;
+  status?: 'success' | 'warning' | 'error' | 'running';
+  kind?: AgentEventKind;
+  summary?: string;
+  hypothesis?: string;
 }
 
 export interface CaseNote {

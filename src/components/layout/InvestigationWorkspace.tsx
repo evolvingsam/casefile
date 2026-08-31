@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useGameStore } from '@/game/state/store';
 import { registerWebMCP } from '@/webmcp/register';
 import { WorkspaceSidebar } from '@/components/layout/WorkspaceSidebar';
+import { AgentActivityPanel } from '@/components/layout/AgentActivityPanel';
 import { OverviewView }   from '@/components/game/OverviewView';
 import { LocationsView }  from '@/components/game/LocationsView';
 import { EvidenceView }   from '@/components/game/EvidenceView';
@@ -99,13 +100,15 @@ export function InvestigationWorkspace() {
         </div>
       </header>
 
-      {/* Body: sidebar + main content */}
+      {/* Body: sidebar + main content + persistent Agent Activity panel */}
       <div className="flex flex-1 overflow-hidden">
         <WorkspaceSidebar />
 
         <main className="flex-1 overflow-y-auto" style={{ background: 'var(--color-void)' }}>
           <ViewRouter />
         </main>
+
+        <AgentActivityPanel />
       </div>
     </div>
   );
