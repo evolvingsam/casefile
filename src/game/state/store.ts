@@ -11,6 +11,7 @@ import type {
   InvestigationEvent,
   InvestigationEventType,
   ActorType,
+  AccusationSubmission,
 } from '@/game/types';
 import { THE_GALLERY_MURDER } from '@/game/data/galleryMurder';
 
@@ -19,6 +20,7 @@ import { THE_GALLERY_MURDER } from '@/game/data/galleryMurder';
 interface GameState {
   phase: AppPhase;
   activeCase: Case;
+  startTime: number;
 
   // Investigation progress
   visitedLocationIds: Set<string>;
@@ -49,6 +51,7 @@ interface GameState {
 
   // Accusation
   accusation: string | null;
+  accusationSubmission: AccusationSubmission | null;
 }
 
 // ─── Actions Shape ────────────────────────────────────────────────────────────
@@ -91,7 +94,11 @@ interface GameActions {
   setAgentHypothesis: (hypothesis: string) => void;
 
   // Accusation
-  makeAccusation: (suspectId: string) => void;
+  makeAccusation: (
+    suspectId: string,
+    reasoning?: string,
+    supportingEvidenceIds?: string[],
+  ) => void;
 
   // Reset
   resetInvestigation: () => void;
@@ -119,6 +126,7 @@ function makeEvent(
 
 const INITIAL_STATE: Omit<GameState, 'activeCase'> = {
   phase: 'landing',
+  startTime: Date.now(),
   visitedLocationIds: new Set(),
   discoveredEvidenceIds: new Set(),
   inspectedEvidenceIds: new Set(),
@@ -131,6 +139,7 @@ const INITIAL_STATE: Omit<GameState, 'activeCase'> = {
   agentHypothesis: null,
   activeView: 'overview',
   accusation: null,
+  accusationSubmission: null,
 };
 
 export const useGameStore = create<GameState & GameActions>((set, get) => ({
@@ -144,6 +153,7 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
   startInvestigation: () =>
     set({
       phase: 'investigation',
+      startTime: Date.now(),
       activeView: 'overview',
     }),
 
@@ -356,14 +366,24 @@ export const useGameStore = create<GameState & GameActions>((set, get) => ({
 
   // ── Accusation ─────────────────────────────────────────────────────────────
 
-  makeAccusation: (suspectId) =>
-    set({ accusation: suspectId, phase: 'resolution' }),
+  makeAccusation: (suspectId, reasoning = '', supportingEvidenceIds = []) =>
+    set({
+      accusation: suspectId,
+      accusationSubmission: {
+        suspectId,
+        reasoning,
+        supportingEvidenceIds,
+        submittedAt: Date.now(),
+      },
+      phase: 'resolution',
+    }),
 
   // ── Reset ──────────────────────────────────────────────────────────────────
 
   resetInvestigation: () =>
     set({
       ...INITIAL_STATE,
+      startTime: Date.now(),
       activeCase: get().activeCase,
     }),
 }));

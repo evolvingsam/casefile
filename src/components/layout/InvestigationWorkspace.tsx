@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameStore } from '@/game/state/store';
 import { registerWebMCP } from '@/webmcp/register';
 import { WorkspaceSidebar } from '@/components/layout/WorkspaceSidebar';
 import { AgentActivityPanel } from '@/components/layout/AgentActivityPanel';
+import { AccusationModal } from '@/components/game/AccusationModal';
 import { OverviewView }   from '@/components/game/OverviewView';
 import { LocationsView }  from '@/components/game/LocationsView';
 import { EvidenceView }   from '@/components/game/EvidenceView';
@@ -30,8 +31,8 @@ function ViewRouter() {
 }
 
 export function InvestigationWorkspace() {
-  const setPhase = useGameStore((s) => s.setPhase);
   const activeCase = useGameStore((s) => s.activeCase);
+  const [showAccusationModal, setShowAccusationModal] = useState(false);
 
   // Register WebMCP tools when workspace mounts
   useEffect(() => {
@@ -43,6 +44,11 @@ export function InvestigationWorkspace() {
       className="flex flex-col"
       style={{ height: '100dvh', background: 'var(--color-void)' }}
     >
+      {/* Accusation Modal */}
+      {showAccusationModal && (
+        <AccusationModal onClose={() => setShowAccusationModal(false)} />
+      )}
+
       {/* Top bar */}
       <header
         className="flex items-center justify-between px-5 border-b shrink-0"
@@ -93,7 +99,7 @@ export function InvestigationWorkspace() {
           <Button
             variant="danger"
             size="sm"
-            onClick={() => setPhase('resolution')}
+            onClick={() => setShowAccusationModal(true)}
           >
             Make Accusation
           </Button>

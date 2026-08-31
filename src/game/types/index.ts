@@ -167,6 +167,15 @@ export interface AgentRecommendation {
   recommendedAction: string;
 }
 
+// ─── Accusation Submission ───────────────────────────────────────────────────
+
+export interface AccusationSubmission {
+  suspectId: SuspectId;
+  reasoning: string;
+  supportingEvidenceIds: EvidenceId[];
+  submittedAt: number;
+}
+
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
 export type WorkspaceView =
