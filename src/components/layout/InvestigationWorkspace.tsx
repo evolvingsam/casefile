@@ -6,6 +6,7 @@ import { registerWebMCP } from '@/webmcp/register';
 import { WorkspaceSidebar } from '@/components/layout/WorkspaceSidebar';
 import { AgentActivityPanel } from '@/components/layout/AgentActivityPanel';
 import { AccusationModal } from '@/components/game/AccusationModal';
+import { NotificationToast } from '@/components/ui/NotificationToast';
 import { OverviewView }   from '@/components/game/OverviewView';
 import { LocationsView }  from '@/components/game/LocationsView';
 import { EvidenceView }   from '@/components/game/EvidenceView';
@@ -41,9 +42,12 @@ export function InvestigationWorkspace() {
 
   return (
     <div
-      className="flex flex-col"
+      className="flex flex-col relative"
       style={{ height: '100dvh', background: 'var(--color-void)' }}
     >
+      {/* Toast Notification Container */}
+      <NotificationToast />
+
       {/* Accusation Modal */}
       {showAccusationModal && (
         <AccusationModal onClose={() => setShowAccusationModal(false)} />
