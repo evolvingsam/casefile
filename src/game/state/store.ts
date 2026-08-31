@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import type {
   AppPhase,
   Case,
@@ -122,7 +123,7 @@ function makeEvent(
   };
 }
 
-// ─── Store ────────────────────────────────────────────────────────────────────
+// ─── Initial State ────────────────────────────────────────────────────────────
 
 const INITIAL_STATE: Omit<GameState, 'activeCase'> = {
   phase: 'landing',
@@ -142,248 +143,292 @@ const INITIAL_STATE: Omit<GameState, 'activeCase'> = {
   accusationSubmission: null,
 };
 
-export const useGameStore = create<GameState & GameActions>((set, get) => ({
-  ...INITIAL_STATE,
-  activeCase: THE_GALLERY_MURDER,
+// ─── Store with Persist Middleware ────────────────────────────────────────────
 
-  // ── Phase ──────────────────────────────────────────────────────────────────
+export const useGameStore = create<GameState & GameActions>()(
+  persist(
+    (set, get) => ({
+      ...INITIAL_STATE,
+      activeCase: THE_GALLERY_MURDER,
 
-  setPhase: (phase) => set({ phase }),
+      // ── Phase ──────────────────────────────────────────────────────────────
 
-  startInvestigation: () =>
-    set({
-      phase: 'investigation',
-      startTime: Date.now(),
-      activeView: 'overview',
-    }),
+      setPhase: (phase) => set({ phase }),
 
-  // ── Workspace ──────────────────────────────────────────────────────────────
+      startInvestigation: () =>
+        set({
+          phase: 'investigation',
+          startTime: Date.now(),
+          activeView: 'overview',
+        }),
 
-  setActiveView: (view) => set({ activeView: view }),
+      // ── Workspace ──────────────────────────────────────────────────────────
 
-  // ── Locations ──────────────────────────────────────────────────────────────
+      setActiveView: (view) => set({ activeView: view }),
 
-  visitLocation: (locationId) =>
-    set((state) => {
-      if (state.visitedLocationIds.has(locationId)) {
-        return {};
-      }
+      // ── Locations ──────────────────────────────────────────────────────────
 
-      const location = state.activeCase.locations.find((l) => l.id === locationId);
-      const newVisited = new Set([...state.visitedLocationIds, locationId]);
-      const newDiscovered = new Set([...state.discoveredEvidenceIds]);
-
-      const newLogEntries: InvestigationEvent[] = [
-        makeEvent('location_visited', `Visited ${location?.name ?? locationId}`, locationId, 'human'),
-      ];
-
-      if (location) {
-        location.evidenceIds.forEach((eid) => {
-          if (!newDiscovered.has(eid)) {
-            newDiscovered.add(eid);
-            const ev = state.activeCase.evidence.find((e) => e.id === eid);
-            newLogEntries.push(
-              makeEvent('evidence_discovered', `Discovered: ${ev?.name ?? eid}`, eid, 'human'),
-            );
+      visitLocation: (locationId) =>
+        set((state) => {
+          if (state.visitedLocationIds.has(locationId)) {
+            return {};
           }
-        });
-      }
 
-      return {
-        visitedLocationIds: newVisited,
-        discoveredEvidenceIds: newDiscovered,
-        investigationLog: [...state.investigationLog, ...newLogEntries],
-      };
-    }),
+          const location = state.activeCase.locations.find((l) => l.id === locationId);
+          const newVisited = new Set([...state.visitedLocationIds, locationId]);
+          const newDiscovered = new Set([...state.discoveredEvidenceIds]);
 
-  // ── Evidence ───────────────────────────────────────────────────────────────
-
-  discoverEvidence: (evidenceId) =>
-    set((state) => {
-      if (state.discoveredEvidenceIds.has(evidenceId)) return {};
-      const ev = state.activeCase.evidence.find((e) => e.id === evidenceId);
-      return {
-        discoveredEvidenceIds: new Set([...state.discoveredEvidenceIds, evidenceId]),
-        investigationLog: [
-          ...state.investigationLog,
-          makeEvent('evidence_discovered', `Discovered: ${ev?.name ?? evidenceId}`, evidenceId, 'human'),
-        ],
-      };
-    }),
-
-  inspectEvidence: (evidenceId) =>
-    set((state) => {
-      const ev = state.activeCase.evidence.find((e) => e.id === evidenceId);
-      const alreadyInspected = state.inspectedEvidenceIds.has(evidenceId);
-      const newLog = alreadyInspected
-        ? state.investigationLog
-        : [
-            ...state.investigationLog,
-            makeEvent('evidence_inspected', `Inspected: ${ev?.name ?? evidenceId}`, evidenceId, 'human'),
+          const newLogEntries: InvestigationEvent[] = [
+            makeEvent('location_visited', `Visited ${location?.name ?? locationId}`, locationId, 'human'),
           ];
 
-      return {
-        inspectedEvidenceIds: new Set([...state.inspectedEvidenceIds, evidenceId]),
-        investigationLog: newLog,
-      };
-    }),
+          if (location) {
+            location.evidenceIds.forEach((eid) => {
+              if (!newDiscovered.has(eid)) {
+                newDiscovered.add(eid);
+                const ev = state.activeCase.evidence.find((e) => e.id === eid);
+                newLogEntries.push(
+                  makeEvent('evidence_discovered', `Discovered: ${ev?.name ?? eid}`, eid, 'human'),
+                );
+              }
+            });
+          }
 
-  // ── Interviews ─────────────────────────────────────────────────────────────
+          return {
+            visitedLocationIds: newVisited,
+            discoveredEvidenceIds: newDiscovered,
+            investigationLog: [...state.investigationLog, ...newLogEntries],
+          };
+        }),
 
-  recordInterview: (entry) =>
-    set((state) => {
-      const suspect = state.activeCase.suspects.find((s) => s.id === entry.suspectId);
-      const firstInterview = !state.interviewedSuspectIds.has(entry.suspectId);
-      const actor = entry.author ?? 'human';
+      // ── Evidence ───────────────────────────────────────────────────────────
 
-      const newEntry: InterviewEntry = { ...entry, author: actor, id: crypto.randomUUID() };
+      discoverEvidence: (evidenceId) =>
+        set((state) => {
+          if (state.discoveredEvidenceIds.has(evidenceId)) return {};
+          const ev = state.activeCase.evidence.find((e) => e.id === evidenceId);
+          return {
+            discoveredEvidenceIds: new Set([...state.discoveredEvidenceIds, evidenceId]),
+            investigationLog: [
+              ...state.investigationLog,
+              makeEvent('evidence_discovered', `Discovered: ${ev?.name ?? evidenceId}`, evidenceId, 'human'),
+            ],
+          };
+        }),
 
-      const newLog: InvestigationEvent[] = [...state.investigationLog];
-      if (firstInterview) {
-        newLog.push(
-          makeEvent(
-            'suspect_interviewed',
-            `${actor === 'agent' ? 'AGENT' : 'YOU'} interviewed ${suspect?.name ?? entry.suspectId}`,
-            entry.suspectId,
-            actor,
-          ),
-        );
-      }
+      inspectEvidence: (evidenceId) =>
+        set((state) => {
+          const ev = state.activeCase.evidence.find((e) => e.id === evidenceId);
+          const alreadyInspected = state.inspectedEvidenceIds.has(evidenceId);
+          const newLog = alreadyInspected
+            ? state.investigationLog
+            : [
+                ...state.investigationLog,
+                makeEvent('evidence_inspected', `Inspected: ${ev?.name ?? evidenceId}`, evidenceId, 'human'),
+              ];
 
-      return {
-        interviews: [...state.interviews, newEntry],
-        interviewedSuspectIds: new Set([
-          ...state.interviewedSuspectIds,
-          entry.suspectId,
-        ]),
-        investigationLog: newLog,
-      };
-    }),
+          return {
+            inspectedEvidenceIds: new Set([...state.inspectedEvidenceIds, evidenceId]),
+            investigationLog: newLog,
+          };
+        }),
 
-  // ── Notes ──────────────────────────────────────────────────────────────────
+      // ── Interviews ─────────────────────────────────────────────────────────
 
-  addNote: (content, author) =>
-    set((state) => ({
-      notes: [
-        ...state.notes,
-        { id: crypto.randomUUID(), content, author, timestamp: Date.now() },
-      ],
-      investigationLog: [
-        ...state.investigationLog,
-        makeEvent(
-          'note_added',
-          `${author === 'agent' ? 'AGENT' : 'YOU'} added a note: "${content.slice(0, 35)}..."`,
-          undefined,
-          author,
-        ),
-      ],
-    })),
+      recordInterview: (entry) =>
+        set((state) => {
+          const suspect = state.activeCase.suspects.find((s) => s.id === entry.suspectId);
+          const firstInterview = !state.interviewedSuspectIds.has(entry.suspectId);
+          const actor = entry.author ?? 'human';
 
-  deleteNote: (noteId) =>
-    set((state) => ({
-      notes: state.notes.filter((n) => n.id !== noteId),
-    })),
+          const newEntry: InterviewEntry = { ...entry, author: actor, id: crypto.randomUUID() };
 
-  // ── Case Board ─────────────────────────────────────────────────────────────
+          const newLog: InvestigationEvent[] = [...state.investigationLog];
+          if (firstInterview) {
+            newLog.push(
+              makeEvent(
+                'suspect_interviewed',
+                `${actor === 'agent' ? 'AGENT' : 'YOU'} interviewed ${suspect?.name ?? entry.suspectId}`,
+                entry.suspectId,
+                actor,
+              ),
+            );
+          }
 
-  addConnection: (fromId, fromType, toId, toType, label, author = 'human') =>
-    set((state) => {
-      const exists = state.connections.some(
-        (c) =>
-          (c.fromId === fromId && c.toId === toId) ||
-          (c.fromId === toId && c.toId === fromId),
-      );
-      if (exists) return {};
+          return {
+            interviews: [...state.interviews, newEntry],
+            interviewedSuspectIds: new Set([
+              ...state.interviewedSuspectIds,
+              entry.suspectId,
+            ]),
+            investigationLog: newLog,
+          };
+        }),
 
-      const connection: BoardConnection = {
-        id: crypto.randomUUID(),
-        fromId,
-        fromType,
-        toId,
-        toType,
-        label,
-        author,
-        timestamp: Date.now(),
-      };
+      // ── Notes ──────────────────────────────────────────────────────────────
 
-      return {
-        connections: [...state.connections, connection],
-        investigationLog: [
-          ...state.investigationLog,
-          makeEvent(
-            'connection_made',
-            `${author === 'agent' ? 'AGENT' : 'YOU'} linked ${fromId} ↔ ${toId}`,
-            connection.id,
+      addNote: (content, author) =>
+        set((state) => ({
+          notes: [
+            ...state.notes,
+            { id: crypto.randomUUID(), content, author, timestamp: Date.now() },
+          ],
+          investigationLog: [
+            ...state.investigationLog,
+            makeEvent(
+              'note_added',
+              `${author === 'agent' ? 'AGENT' : 'YOU'} added a note: "${content.slice(0, 35)}..."`,
+              undefined,
+              author,
+            ),
+          ],
+        })),
+
+      deleteNote: (noteId) =>
+        set((state) => ({
+          notes: state.notes.filter((n) => n.id !== noteId),
+        })),
+
+      // ── Case Board ─────────────────────────────────────────────────────────
+
+      addConnection: (fromId, fromType, toId, toType, label, author = 'human') =>
+        set((state) => {
+          const exists = state.connections.some(
+            (c) =>
+              (c.fromId === fromId && c.toId === toId) ||
+              (c.fromId === toId && c.toId === fromId),
+          );
+          if (exists) return {};
+
+          const connection: BoardConnection = {
+            id: crypto.randomUUID(),
+            fromId,
+            fromType,
+            toId,
+            toType,
+            label,
             author,
-          ),
-        ],
-      };
+            timestamp: Date.now(),
+          };
+
+          return {
+            connections: [...state.connections, connection],
+            investigationLog: [
+              ...state.investigationLog,
+              makeEvent(
+                'connection_made',
+                `${author === 'agent' ? 'AGENT' : 'YOU'} linked ${fromId} ↔ ${toId}`,
+                connection.id,
+                author,
+              ),
+            ],
+          };
+        }),
+
+      removeConnection: (connectionId) =>
+        set((state) => ({
+          connections: state.connections.filter((c) => c.id !== connectionId),
+          investigationLog: [
+            ...state.investigationLog,
+            makeEvent('connection_removed', `Connection removed`, connectionId, 'human'),
+          ],
+        })),
+
+      // ── Agent ──────────────────────────────────────────────────────────────
+
+      logAgentAction: (action) =>
+        set((state) => {
+          const newAction: AgentAction = {
+            ...action,
+            id: crypto.randomUUID(),
+            timestamp: Date.now(),
+          };
+
+          const summaryText = action.summary ?? `[WebMCP] ${action.tool} executed`;
+
+          return {
+            agentActions: [...state.agentActions, newAction],
+            investigationLog: [
+              ...state.investigationLog,
+              makeEvent('agent_tool_call', `AGENT ${summaryText}`, newAction.id, 'agent'),
+            ],
+          };
+        }),
+
+      setAgentHypothesis: (hypothesis) =>
+        set((state) => ({
+          agentHypothesis: hypothesis,
+          investigationLog: [
+            ...state.investigationLog,
+            makeEvent(
+              'agent_hypothesis',
+              `AGENT updated hypothesis: "${hypothesis.slice(0, 45)}..."`,
+              undefined,
+              'agent',
+            ),
+          ],
+        })),
+
+      // ── Accusation ─────────────────────────────────────────────────────────
+
+      makeAccusation: (suspectId, reasoning = '', supportingEvidenceIds = []) =>
+        set({
+          accusation: suspectId,
+          accusationSubmission: {
+            suspectId,
+            reasoning,
+            supportingEvidenceIds,
+            submittedAt: Date.now(),
+          },
+          phase: 'resolution',
+        }),
+
+      // ── Reset ──────────────────────────────────────────────────────────────
+
+      resetInvestigation: () =>
+        set({
+          ...INITIAL_STATE,
+          startTime: Date.now(),
+          activeCase: get().activeCase,
+        }),
     }),
-
-  removeConnection: (connectionId) =>
-    set((state) => ({
-      connections: state.connections.filter((c) => c.id !== connectionId),
-      investigationLog: [
-        ...state.investigationLog,
-        makeEvent('connection_removed', `Connection removed`, connectionId, 'human'),
-      ],
-    })),
-
-  // ── Agent ──────────────────────────────────────────────────────────────────
-
-  logAgentAction: (action) =>
-    set((state) => {
-      const newAction: AgentAction = {
-        ...action,
-        id: crypto.randomUUID(),
-        timestamp: Date.now(),
-      };
-
-      const summaryText = action.summary ?? `[WebMCP] ${action.tool} executed`;
-
-      return {
-        agentActions: [...state.agentActions, newAction],
-        investigationLog: [
-          ...state.investigationLog,
-          makeEvent('agent_tool_call', `AGENT ${summaryText}`, newAction.id, 'agent'),
-        ],
-      };
-    }),
-
-  setAgentHypothesis: (hypothesis) =>
-    set((state) => ({
-      agentHypothesis: hypothesis,
-      investigationLog: [
-        ...state.investigationLog,
-        makeEvent(
-          'agent_hypothesis',
-          `AGENT updated hypothesis: "${hypothesis.slice(0, 45)}..."`,
-          undefined,
-          'agent',
-        ),
-      ],
-    })),
-
-  // ── Accusation ─────────────────────────────────────────────────────────────
-
-  makeAccusation: (suspectId, reasoning = '', supportingEvidenceIds = []) =>
-    set({
-      accusation: suspectId,
-      accusationSubmission: {
-        suspectId,
-        reasoning,
-        supportingEvidenceIds,
-        submittedAt: Date.now(),
+    {
+      name: 'casefile-game-session-v1',
+      storage: createJSONStorage(() => localStorage),
+      // Custom serializer / deserializer for Set data structures
+      partialize: (state) => ({
+        phase: state.phase,
+        startTime: state.startTime,
+        visitedLocationIds: Array.from(state.visitedLocationIds),
+        discoveredEvidenceIds: Array.from(state.discoveredEvidenceIds),
+        inspectedEvidenceIds: Array.from(state.inspectedEvidenceIds),
+        interviewedSuspectIds: Array.from(state.interviewedSuspectIds),
+        interviews: state.interviews,
+        notes: state.notes,
+        connections: state.connections,
+        investigationLog: state.investigationLog,
+        agentActions: state.agentActions,
+        agentHypothesis: state.agentHypothesis,
+        activeView: state.activeView,
+        accusation: state.accusation,
+        accusationSubmission: state.accusationSubmission,
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        // Convert Arrays back to Sets after rehydration
+        if (Array.isArray((state as any).visitedLocationIds)) {
+          state.visitedLocationIds = new Set((state as any).visitedLocationIds);
+        }
+        if (Array.isArray((state as any).discoveredEvidenceIds)) {
+          state.discoveredEvidenceIds = new Set((state as any).discoveredEvidenceIds);
+        }
+        if (Array.isArray((state as any).inspectedEvidenceIds)) {
+          state.inspectedEvidenceIds = new Set((state as any).inspectedEvidenceIds);
+        }
+        if (Array.isArray((state as any).interviewedSuspectIds)) {
+          state.interviewedSuspectIds = new Set((state as any).interviewedSuspectIds);
+        }
       },
-      phase: 'resolution',
-    }),
-
-  // ── Reset ──────────────────────────────────────────────────────────────────
-
-  resetInvestigation: () =>
-    set({
-      ...INITIAL_STATE,
-      startTime: Date.now(),
-      activeCase: get().activeCase,
-    }),
-}));
+    },
+  ),
+);
