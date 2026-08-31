@@ -8,7 +8,7 @@ export function LandingPage() {
 
   return (
     <div
-      className="min-h-dvh flex flex-col items-center justify-center relative overflow-hidden px-4"
+      className="min-h-dvh flex flex-col items-center justify-center relative overflow-hidden px-4 py-12"
       style={{ background: 'var(--color-void)' }}
     >
       {/* Background radial glow */}
@@ -16,7 +16,7 @@ export function LandingPage() {
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(ellipse 70% 60% at 50% 40%, oklch(52% 0.22 18 / 0.06) 0%, transparent 70%)',
+            'radial-gradient(ellipse 70% 60% at 50% 40%, oklch(52% 0.22 18 / 0.08) 0%, transparent 70%)',
         }}
       />
 
@@ -30,107 +30,93 @@ export function LandingPage() {
         }}
       />
 
-      <div className="relative z-10 text-center max-w-2xl w-full animate-fade-in">
-        {/* Case label */}
-        <div className="flex items-center justify-center gap-3 mb-8">
+      <div className="relative z-10 text-center max-w-3xl w-full animate-fade-in space-y-8">
+        {/* Designed for humans and AI agents badge */}
+        <div>
           <div
-            className="h-px w-16"
-            style={{ background: 'var(--color-crimson)' }}
-          />
-          <span
-            className="text-xs font-mono tracking-[0.3em] uppercase"
-            style={{ color: 'var(--color-crimson)' }}
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-mono tracking-wider uppercase font-semibold"
+            style={{
+              background: 'oklch(75% 0.18 75 / 0.08)',
+              border: '1px solid oklch(75% 0.18 75 / 0.25)',
+              color: 'var(--color-amber)',
+            }}
           >
-            Case File #001
-          </span>
-          <div
-            className="h-px w-16"
-            style={{ background: 'var(--color-crimson)' }}
-          />
+            <span
+              className="w-2 h-2 rounded-full animate-pulse"
+              style={{ background: 'var(--color-amber)' }}
+            />
+            Designed for humans and AI agents
+          </div>
         </div>
 
         {/* Title */}
-        <h1
-          className="text-7xl md:text-8xl font-bold mb-4 animate-flicker"
-          style={{
-            fontFamily: 'var(--font-playfair)',
-            color: 'var(--color-text-primary)',
-            textShadow: '0 0 80px oklch(75% 0.18 75 / 0.15)',
-            letterSpacing: '-0.01em',
-          }}
-        >
-          CASEFILE
-        </h1>
+        <div>
+          <h1
+            className="text-7xl md:text-9xl font-bold mb-3 animate-flicker tracking-tight"
+            style={{
+              fontFamily: 'var(--font-playfair)',
+              color: 'var(--color-text-primary)',
+              textShadow: '0 0 80px oklch(75% 0.18 75 / 0.2)',
+            }}
+          >
+            CASEFILE
+          </h1>
 
-        {/* Divider ornament */}
-        <div className="flex items-center justify-center gap-4 mb-8">
-          <div className="h-px flex-1 max-w-[80px]" style={{ background: 'var(--color-border)' }} />
-          <span style={{ color: 'var(--color-amber)', fontSize: '10px' }}>✦</span>
-          <div className="h-px flex-1 max-w-[80px]" style={{ background: 'var(--color-border)' }} />
+          {/* Core Tagline */}
+          <blockquote
+            className="text-xl md:text-2xl font-serif italic mb-2"
+            style={{ color: 'var(--color-amber)', fontFamily: 'var(--font-playfair)' }}
+          >
+            &ldquo;Solve the mystery. Work with an AI investigator.&rdquo;
+          </blockquote>
+          <p className="text-sm font-mono text-muted">
+            Case #047 — The Gallery Murder
+          </p>
         </div>
 
-        {/* Subtitle */}
-        <p
-          className="text-lg mb-2 font-medium"
-          style={{ color: 'var(--color-text-secondary)', fontFamily: 'var(--font-playfair)' }}
-        >
-          The Midnight Gala
-        </p>
-        <p className="text-sm mb-10" style={{ color: 'var(--color-text-muted)' }}>
-          An agent-native murder mystery — investigate alongside an AI
-        </p>
+        {/* Feature Explanations */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+          <div
+            className="card p-5 space-y-2"
+            style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-subtle)' }}
+          >
+            <h3 className="text-xs font-mono uppercase tracking-widest font-bold" style={{ color: 'var(--color-amber)' }}>
+              🤝 Human + Agent Collaboration
+            </h3>
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+              You and an AI co-investigator operate on the exact same investigation state. Clues discovered, interviews conducted, and notes taken by either party are immediately shared in real time.
+            </p>
+          </div>
 
-        {/* Agent badge */}
-        <div
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-10 text-xs font-medium"
-          style={{
-            background: 'oklch(75% 0.18 75 / 0.07)',
-            border: '1px solid oklch(75% 0.18 75 / 0.2)',
-            color: 'var(--color-amber)',
-          }}
-        >
-          <span
-            className="w-1.5 h-1.5 rounded-full animate-pulse"
-            style={{ background: 'var(--color-amber)' }}
-          />
-          WebMCP-enabled · AI agent co-investigates via structured tools
+          <div
+            className="card p-5 space-y-2"
+            style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-subtle)' }}
+          >
+            <h3 className="text-xs font-mono uppercase tracking-widest font-bold" style={{ color: 'var(--color-amber)' }}>
+              ⚡ Powered by WebMCP
+            </h3>
+            <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+              Exposes 9 structured WebMCP tools (<code className="text-amber-400">search_evidence</code>, <code className="text-amber-400">inspect_evidence</code>, <code className="text-amber-400">interview_suspect</code>, <code className="text-amber-400">build_timeline</code>, etc.) allowing autonomous AI agents to operate the game directly.
+            </p>
+          </div>
         </div>
 
-        {/* CTA */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+        {/* Start Button */}
+        <div className="pt-2">
           <Button
             variant="primary"
             size="lg"
+            className="px-10 py-4 text-base tracking-wider font-semibold cursor-pointer shadow-xl hover:scale-105 transition-transform"
             onClick={() => setPhase('briefing')}
-            className="min-w-[180px] animate-pulse-amber"
           >
-            Open the Case
-          </Button>
-          <Button
-            variant="ghost"
-            size="lg"
-            onClick={() => setPhase('investigation')}
-          >
-            Skip to Investigation
+            START INVESTIGATION →
           </Button>
         </div>
 
-        {/* Feature pills */}
-        <div className="flex flex-wrap justify-center gap-2 mt-12">
-          {['5 Suspects', '4 Locations', '10 Evidence Pieces', 'Red Herrings', 'AI Co-Detective'].map((f) => (
-            <span
-              key={f}
-              className="text-xs px-3 py-1 rounded-full"
-              style={{
-                background: 'var(--color-surface-2)',
-                color: 'var(--color-text-muted)',
-                border: '1px solid var(--color-border-subtle)',
-              }}
-            >
-              {f}
-            </span>
-          ))}
-        </div>
+        {/* No Auth Disclaimer */}
+        <p className="text-[11px] font-mono" style={{ color: 'var(--color-text-muted)' }}>
+          No login or registration required · Instant hackathon judging access
+        </p>
       </div>
     </div>
   );
