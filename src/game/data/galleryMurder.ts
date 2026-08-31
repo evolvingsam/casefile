@@ -629,6 +629,7 @@ export const THE_GALLERY_MURDER: Case = {
       suspectIds: [],
       evidenceIds: [],
       isContradiction: false,
+      alwaysVisible: true,
     },
     {
       id: 'tl-2',
@@ -638,6 +639,7 @@ export const THE_GALLERY_MURDER: Case = {
       suspectIds: ['marcus-cole', 'sarah-okafor', 'james-bello', 'victoria-adeyemi', 'michael-grant'],
       evidenceIds: [],
       isContradiction: false,
+      alwaysVisible: true,
     },
     {
       id: 'tl-3',
@@ -758,6 +760,7 @@ export const THE_GALLERY_MURDER: Case = {
       suspectIds: ['michael-grant'],
       evidenceIds: ['broken-watch'],
       isContradiction: false,
+      alwaysVisible: true,
     },
   ],
 

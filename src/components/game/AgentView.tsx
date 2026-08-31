@@ -1,19 +1,21 @@
 'use client';
 
 import { useGameStore } from '@/game/state/store';
+import { Badge } from '@/components/ui/Badge';
 
 export function AgentView() {
   const agentActions = useGameStore((s) => s.agentActions);
+  const investigationLog = useGameStore((s) => s.investigationLog);
 
   return (
-    <div className="p-8 animate-fade-in space-y-6">
+    <div className="p-6 md:p-8 animate-fade-in space-y-6">
       <div>
         <div className="flex items-center gap-3 mb-3">
           <span
             className="text-xs font-mono tracking-widest uppercase"
             style={{ color: 'var(--color-amber)' }}
           >
-            ◈ AI Agent
+            🤖 AI Co-Investigator
           </span>
           <div className="h-px flex-1" style={{ background: 'var(--color-border-subtle)' }} />
         </div>
@@ -21,74 +23,84 @@ export function AgentView() {
           className="text-3xl font-bold mb-1"
           style={{ fontFamily: 'var(--font-playfair)' }}
         >
-          Agent Activity
+          Agent Collaboration Workspace
         </h1>
         <p style={{ color: 'var(--color-text-secondary)' }}>
-          The AI investigator operates through WebMCP tools — watching the same case you are.
+          Monitor AI co-investigator activity and shared investigation events.
         </p>
       </div>
 
-      {/* WebMCP status card */}
-      <div
-        className="card p-5"
-        style={{ borderColor: 'oklch(75% 0.18 75 / 0.2)' }}
-      >
-        <div className="flex items-center gap-3 mb-3">
-          <div
-            className="w-2.5 h-2.5 rounded-full"
-            style={{ background: agentActions.length > 0 ? 'var(--color-amber)' : 'var(--color-text-muted)' }}
-          />
-          <span className="text-sm font-medium">
-            WebMCP Interface
-          </span>
-          <span className="badge badge-muted ml-auto">
-            {agentActions.length > 0 ? 'Active' : 'Idle'}
-          </span>
-        </div>
-        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-          An external AI agent can connect via <code className="text-xs px-1 py-0.5 rounded" style={{ background: 'var(--color-surface-3)', color: 'var(--color-amber)' }}>navigator.modelContext</code> and use structured tools to investigate alongside you.
-        </p>
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left: WebMCP Status */}
+        <div className="card p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold uppercase tracking-wider" style={{ color: 'var(--color-amber)' }}>
+              WebMCP Connection
+            </h3>
+            <Badge variant="amber">Ready for WebMCP</Badge>
+          </div>
 
-      {/* Activity feed */}
-      {agentActions.length === 0 ? (
-        <div
-          className="card p-10 text-center"
-          style={{ borderStyle: 'dashed' }}
-        >
-          <div className="text-4xl mb-4">◈</div>
-          <h3
-            className="text-lg font-semibold mb-2"
-            style={{ fontFamily: 'var(--font-playfair)' }}
-          >
-            No agent activity yet
-          </h3>
-          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
-            When an AI agent investigates this case, their tool calls will appear here in real time.
+          <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+            The WebMCP tool framework will expose structured tools to AI agents in Step 4. All investigation actions executed by the agent will appear here in real time.
           </p>
+
+          <div
+            className="p-4 rounded-lg text-xs space-y-2 font-mono"
+            style={{
+              background: 'var(--color-surface-2)',
+              border: '1px solid var(--color-border-subtle)',
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            <p className="text-white font-semibold">Exposed Capabilities (Step 4 preview):</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>search_evidence(query)</li>
+              <li>inspect_evidence(evidence_id)</li>
+              <li>interview_suspect(suspect_id, question_id)</li>
+              <li>reconstruct_timeline()</li>
+              <li>recommend_accusation()</li>
+            </ul>
+          </div>
         </div>
-      ) : (
-        <div className="space-y-3">
-          {agentActions.map((action) => (
-            <div key={action.id} className="card p-4 animate-slide-right">
-              <div className="flex items-center gap-2 mb-2">
-                <span
-                  className="text-xs font-mono"
-                  style={{ color: 'var(--color-amber)' }}
-                >
-                  {action.tool}
-                </span>
-                <span className="text-xs ml-auto" style={{ color: 'var(--color-text-muted)' }}>
-                  {new Date(action.timestamp).toLocaleTimeString()}
-                </span>
-              </div>
-              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                {action.result}
+
+        {/* Right: Shared Investigation Log */}
+        <div className="card p-6 space-y-4">
+          <h3 className="text-sm font-bold uppercase tracking-wider" style={{ color: 'var(--color-amber)' }}>
+            Investigation Activity Log ({investigationLog.length})
+          </h3>
+
+          <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+            {investigationLog.length === 0 ? (
+              <p className="text-xs italic py-4 text-center" style={{ color: 'var(--color-text-muted)' }}>
+                No investigation events recorded yet. Start exploring locations!
               </p>
-            </div>
-          ))}
+            ) : (
+              [...investigationLog].reverse().map((event) => (
+                <div
+                  key={event.id}
+                  className="p-3 rounded-lg text-xs flex items-center justify-between"
+                  style={{
+                    background: 'var(--color-surface-2)',
+                    border: '1px solid var(--color-border-subtle)',
+                  }}
+                >
+                  <div className="space-y-0.5">
+                    <p className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                      {event.description}
+                    </p>
+                    <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                      Type: {event.type}
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-mono" style={{ color: 'var(--color-text-muted)' }}>
+                    {new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
