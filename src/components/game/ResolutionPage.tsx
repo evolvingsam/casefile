@@ -44,7 +44,7 @@ export function ResolutionPage() {
 
   return (
     <div
-      className="min-h-dvh flex flex-col items-center justify-center px-4 py-10 relative overflow-y-auto"
+      className="flex-1 flex flex-col items-center justify-center px-4 py-10 relative overflow-y-auto"
       style={{ background: 'var(--color-void)' }}
     >
       {/* Background glow */}

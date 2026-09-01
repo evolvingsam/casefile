@@ -18,7 +18,7 @@ export function CaseSelectionPage() {
 
   return (
     <div
-      className="min-h-dvh flex flex-col items-center justify-center px-4 py-16 relative overflow-hidden"
+      className="flex-1 flex flex-col items-center justify-center px-4 py-16 relative"
       style={{ background: 'var(--color-void)' }}
     >
       {/* Background radial glow */}

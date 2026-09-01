@@ -44,8 +44,8 @@ export function InvestigationWorkspace() {
 
   return (
     <div
-      className="flex flex-col relative"
-      style={{ height: '100dvh', background: 'var(--color-void)' }}
+      className="flex flex-col relative flex-1"
+      style={{ background: 'var(--color-void)' }}
     >
       {/* Toast Notification Container */}
       <NotificationToast />

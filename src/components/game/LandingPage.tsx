@@ -8,7 +8,7 @@ export function LandingPage() {
 
   return (
     <div
-      className="min-h-dvh flex flex-col items-center justify-center relative overflow-hidden px-4 py-12"
+      className="flex-1 flex flex-col items-center justify-center relative px-4 py-12"
       style={{ background: 'var(--color-void)' }}
     >
       {/* Background radial glow */}

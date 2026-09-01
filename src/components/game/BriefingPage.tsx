@@ -10,7 +10,7 @@ export function BriefingPage() {
 
   return (
     <div
-      className="min-h-dvh flex flex-col items-center justify-center px-4 py-16 relative"
+      className="flex-1 flex flex-col items-center justify-center px-4 py-16 relative"
       style={{ background: 'var(--color-void)' }}
     >
       {/* Background gradient */}
