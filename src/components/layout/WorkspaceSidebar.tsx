@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'evidence',   label: 'Evidence',      icon: '🔍', description: 'Physical clues' },
   { id: 'suspects',   label: 'Suspects',      icon: '👤', description: 'Persons of interest' },
   { id: 'timeline',   label: 'Timeline',      icon: '◷', description: 'Sequence of events' },
+  { id: 'deductions', label: 'Deductions',    icon: '🧠', description: 'Reasoning & Hypotheses' },
   { id: 'caseboard',  label: 'Case Board',    icon: '⊞', description: 'Connect the dots' },
   { id: 'agent',      label: 'AI Agent',      icon: '◈', description: 'Agent activity' },
 ];
@@ -38,30 +39,41 @@ export function WorkspaceSidebar() {
       }}
     >
       {/* Case Identity */}
-      <div className="p-4 border-b" style={{ borderColor: 'var(--color-border-subtle)' }}>
-        <div className="flex items-center gap-2 mb-1">
-          <span
-            className="text-xs font-mono tracking-widest uppercase"
-            style={{ color: 'var(--color-crimson)' }}
+      <div className="p-4 border-b space-y-2" style={{ borderColor: 'var(--color-border-subtle)' }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span
+              className="text-xs font-mono tracking-widest uppercase"
+              style={{ color: 'var(--color-crimson)' }}
+            >
+              CASE FILE
+            </span>
+            <span
+              className="text-xs font-mono"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              {activeCase.caseNumber}
+            </span>
+          </div>
+          <button
+            onClick={() => useGameStore.getState().setPhase('cases')}
+            className="text-[10px] font-mono px-2 py-0.5 rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors"
+            title="Switch Investigation Case"
           >
-            CASE FILE
-          </span>
-          <span
-            className="text-xs font-mono"
-            style={{ color: 'var(--color-text-muted)' }}
-          >
-            #001
-          </span>
+            SWITCH CASE
+          </button>
         </div>
-        <h2
-          className="text-sm font-semibold leading-tight"
-          style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-text-primary)' }}
-        >
-          {activeCase.title}
-        </h2>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
-          {activeCase.subtitle}
-        </p>
+        <div>
+          <h2
+            className="text-sm font-semibold leading-tight"
+            style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-text-primary)' }}
+          >
+            {activeCase.title}
+          </h2>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-muted)' }}>
+            {activeCase.subtitle}
+          </p>
+        </div>
       </div>
 
       {/* Navigation */}

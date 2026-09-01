@@ -85,6 +85,41 @@ export interface CaseSolution {
   keyEvidenceIds: EvidenceId[];
 }
 
+// ─── Hidden Relationship & Deduction Requirements ─────────────────────────────
+
+export interface HiddenRelationship {
+  sourceId: string;
+  targetId: string;
+  relationshipType: string;
+  description: string;
+  requiresEvidenceIds?: EvidenceId[];
+}
+
+export interface DeductionRequirement {
+  id: string;
+  title: string;
+  description: string;
+  requiredEvidenceIds: EvidenceId[];
+  requiredInterviewQuestionIds?: string[];
+  isFulfilled?: boolean;
+}
+
+export type CaseStatus = 'available' | 'locked' | 'coming_soon';
+
+export interface CaseMetadata {
+  id: string;
+  caseNumber: string;
+  title: string;
+  subtitle: string;
+  difficulty?: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
+  estimatedTime?: string;
+  status: CaseStatus;
+  victim: string;
+  victimDescription: string;
+  briefing: string;
+  objective?: string;
+}
+
 // ─── Case ─────────────────────────────────────────────────────────────────────
 
 export interface Case {
@@ -92,14 +127,20 @@ export interface Case {
   caseNumber: string;
   title: string;
   subtitle: string;
+  difficulty?: 'Beginner' | 'Intermediate' | 'Advanced' | 'Expert';
+  estimatedTime?: string;
+  status?: CaseStatus;
   victim: string;
   victimDescription: string;
   briefing: string;
+  objective?: string;
   suspects: Suspect[];
   locations: Location[];
   evidence: Evidence[];
   timeline: TimelineEvent[];
+  hiddenRelationships?: HiddenRelationship[];
   solution: CaseSolution;
+  deductionRequirements?: DeductionRequirement[];
 }
 
 // ─── Case Board ───────────────────────────────────────────────────────────────
@@ -167,13 +208,77 @@ export interface AgentRecommendation {
   recommendedAction: string;
 }
 
-// ─── Accusation Submission ───────────────────────────────────────────────────
+// ─── Accusation & Theory Evaluation Types ─────────────────────────────────────
 
 export interface AccusationSubmission {
   suspectId: SuspectId;
-  reasoning: string;
+  method: string;
+  motive: string;
+  approximateTime: string;
+  explanation: string;
   supportingEvidenceIds: EvidenceId[];
   submittedAt: number;
+}
+
+export interface AccusationEvaluation {
+  totalScore: number; // 0 to 100
+  passedThreshold: boolean; // true if totalScore >= 80
+  perpetratorScore: number; // 0 or 30
+  methodScore: number; // 0 to 20
+  motiveScore: number; // 0 to 20
+  timelineScore: number; // 0 to 15
+  evidenceScore: number; // 0 to 15
+  feedbackLines: string[];
+  elementBreakdown: {
+    perpetratorCorrect: boolean;
+    methodRating: 'Correct' | 'Partial' | 'Incorrect';
+    motiveRating: 'Correct' | 'Partial' | 'Incorrect';
+    timelineRating: 'Correct' | 'Partial' | 'Incorrect';
+    evidenceRating: 'Strong' | 'Moderate' | 'Weak';
+  };
+  comparison?: {
+    playerTheory: {
+      suspectName: string;
+      method: string;
+      motive: string;
+      timeline: string;
+      explanation: string;
+      evidenceNames: string[];
+    };
+    actualSolution: {
+      killerName: string;
+      method: string;
+      motive: string;
+      opportunity: string;
+      explanation: string;
+      keyEvidenceNames: string[];
+    };
+  };
+}
+
+// ─── Human Deduction Layer Types ──────────────────────────────────────────────
+
+export type CertaintyLevel = 'Speculative' | 'Possible' | 'Probable' | 'Confirmed';
+
+export interface PlayerHypothesis {
+  id: string;
+  title: string;
+  statement: string;
+  certainty: CertaintyLevel;
+  associatedSuspectId?: SuspectId;
+  associatedTimelineEventId?: string;
+  linkedEvidenceIds: EvidenceId[];
+  createdAt: number;
+}
+
+export interface PlayerContradictionFlag {
+  id: string;
+  title: string;
+  description: string;
+  suspectId?: SuspectId;
+  evidenceIds: EvidenceId[];
+  timelineEventId?: string;
+  createdAt: number;
 }
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
@@ -185,11 +290,12 @@ export type WorkspaceView =
   | 'suspects'
   | 'timeline'
   | 'caseboard'
+  | 'deductions'
   | 'agent';
 
 // ─── App Phase ────────────────────────────────────────────────────────────────
 
-export type AppPhase = 'landing' | 'briefing' | 'investigation' | 'resolution';
+export type AppPhase = 'landing' | 'cases' | 'briefing' | 'investigation' | 'resolution';
 
 // ─── Session Types ────────────────────────────────────────────────────────────
 

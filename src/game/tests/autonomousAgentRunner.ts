@@ -89,14 +89,18 @@ export async function runAutonomousAgentInvestigation() {
   // Step 9: Formulate deduction and submit accusation
   const accusationRes = await executeWebMCPTool('submit_accusation', {
     suspect_id: 'victoria-adeyemi',
-    reasoning:
-      'Victoria Adeyemi is the killer. Keycard log (10:19 PM entry) contradicts her alibi. Cyanide vial batch code traces to her clinic. Paid Michael Grant £3,000 cash to delete 8 minutes of corridor CCTV footage.',
+    method: 'Potassium cyanide poisoning in wine glass during gala',
+    motive: 'Prevent gallery embezzlement and forgery scandal exposure',
+    approximate_time: '10:19 PM gala window',
+    explanation:
+      'Victoria Adeyemi is the perpetrator. Keycard log (10:19 PM entry) contradicts her alibi. Cyanide vial batch code traces to her clinic. Paid guard £3,000 cash to delete 8 minutes of corridor CCTV footage.',
+    supporting_evidence_ids: ['cyanide-vial', 'master-keycard-log', 'bribed-guard-confession', 'torn-financial-journal'],
   });
 
   trajectory.push({
     step: step++,
     tool: 'submit_accusation',
-    resultSummary: `Accusation Verdict: ${accusationRes.data?.verdict}. Verdict is correct: ${accusationRes.data?.isCorrect}`,
+    resultSummary: `Accusation Verdict: ${accusationRes.data?.verdict}. Passed: ${accusationRes.data?.passed}`,
   });
 
   console.log('---------------------------------------------------------');
@@ -105,7 +109,7 @@ export async function runAutonomousAgentInvestigation() {
   console.log('---------------------------------------------------------');
 
   return {
-    success: accusationRes.data?.isCorrect === true,
+    success: accusationRes.data?.passed === true,
     trajectory,
     accusationResult: accusationRes.data,
   };

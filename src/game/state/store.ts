@@ -13,51 +13,75 @@ import type {
   InvestigationEventType,
   ActorType,
   AccusationSubmission,
+  AccusationEvaluation,
+  PlayerHypothesis,
+  PlayerContradictionFlag,
 } from '@/game/types';
 import { THE_GALLERY_MURDER } from '@/game/data/galleryMurder';
+import { getCaseById, getDefaultCaseId } from '@/game/data/registry';
+import { evaluateAccusation } from '@/game/logic/evaluation';
 
-// ─── State Shape ──────────────────────────────────────────────────────────────
+// ─── Per-Case Game State ──────────────────────────────────────────────────────
 
-interface GameState {
-  phase: AppPhase;
-  activeCase: Case;
+export interface CaseGameState {
   startTime: number;
-
-  // Investigation progress
   visitedLocationIds: Set<string>;
   discoveredEvidenceIds: Set<string>;
   inspectedEvidenceIds: Set<string>;
   interviewedSuspectIds: Set<string>;
-
-  // Interview history
   interviews: InterviewEntry[];
-
-  // Case notes
   notes: CaseNote[];
-
-  // Case board connections
   connections: BoardConnection[];
-
-  // Investigation event log
+  hypotheses: PlayerHypothesis[];
+  contradictionFlags: PlayerContradictionFlag[];
   investigationLog: InvestigationEvent[];
-
-  // Agent actions
   agentActions: AgentAction[];
-
-  // Current agent hypothesis
   agentHypothesis: string | null;
-
-  // Workspace nav
   activeView: WorkspaceView;
-
-  // Accusation
   accusation: string | null;
   accusationSubmission: AccusationSubmission | null;
+  accusationEvaluation: AccusationEvaluation | null;
+}
+
+export function createInitialCaseState(): CaseGameState {
+  return {
+    startTime: Date.now(),
+    visitedLocationIds: new Set(),
+    discoveredEvidenceIds: new Set(),
+    inspectedEvidenceIds: new Set(),
+    interviewedSuspectIds: new Set(),
+    interviews: [],
+    notes: [],
+    connections: [],
+    hypotheses: [],
+    contradictionFlags: [],
+    investigationLog: [],
+    agentActions: [],
+    agentHypothesis: null,
+    activeView: 'overview',
+    accusation: null,
+    accusationSubmission: null,
+    accusationEvaluation: null,
+  };
+}
+
+// ─── Main State Shape ─────────────────────────────────────────────────────────
+
+interface GameState extends CaseGameState {
+  phase: AppPhase;
+  activeCaseId: string;
+  activeCase: Case;
+
+  // Map of isolated state per case ID
+  caseStates: Record<string, CaseGameState>;
 }
 
 // ─── Actions Shape ────────────────────────────────────────────────────────────
 
 interface GameActions {
+  // Case selection
+  selectCase: (caseId: string) => void;
+
   // Phase
   setPhase: (phase: AppPhase) => void;
   startInvestigation: () => void;
@@ -90,6 +114,14 @@ interface GameActions {
   ) => void;
   removeConnection: (connectionId: string) => void;
 
+  // Human Deduction Layer Actions
+  addHypothesis: (hypothesis: Omit<PlayerHypothesis, 'id' | 'createdAt'>) => void;
+  updateHypothesis: (id: string, updates: Partial<PlayerHypothesis>) => void;
+  deleteHypothesis: (id: string) => void;
+
+  addContradictionFlag: (flag: Omit<PlayerContradictionFlag, 'id' | 'createdAt'>) => void;
+  deleteContradictionFlag: (id: string) => void;
+
   // Agent actions
   logAgentAction: (action: Omit<AgentAction, 'id' | 'timestamp'>) => void;
   setAgentHypothesis: (hypothesis: string) => void;
@@ -97,7 +129,10 @@ interface GameActions {
   // Accusation
   makeAccusation: (
     suspectId: string,
-    reasoning?: string,
+    method?: string,
+    motive?: string,
+    approximateTime?: string,
+    explanation?: string,
     supportingEvidenceIds?: string[],
   ) => void;
 
@@ -123,48 +158,136 @@ function makeEvent(
   };
 }
 
-// ─── Initial State ────────────────────────────────────────────────────────────
+const defaultId = getDefaultCaseId();
+const defaultCase = THE_GALLERY_MURDER;
 
-const INITIAL_STATE: Omit<GameState, 'activeCase'> = {
-  phase: 'landing',
-  startTime: Date.now(),
-  visitedLocationIds: new Set(),
-  discoveredEvidenceIds: new Set(),
-  inspectedEvidenceIds: new Set(),
-  interviewedSuspectIds: new Set(),
-  interviews: [],
-  notes: [],
-  connections: [],
-  investigationLog: [],
-  agentActions: [],
-  agentHypothesis: null,
-  activeView: 'overview',
-  accusation: null,
-  accusationSubmission: null,
-};
+// Helper to update active case state and sync into caseStates record
+function updateActiveCaseState(
+  state: GameState,
+  updates: Partial<CaseGameState>,
+): Partial<GameState> {
+  const nextCs: CaseGameState = {
+    startTime: updates.startTime ?? state.startTime,
+    visitedLocationIds: new Set(updates.visitedLocationIds ?? state.visitedLocationIds),
+    discoveredEvidenceIds: new Set(updates.discoveredEvidenceIds ?? state.discoveredEvidenceIds),
+    inspectedEvidenceIds: new Set(updates.inspectedEvidenceIds ?? state.inspectedEvidenceIds),
+    interviewedSuspectIds: new Set(updates.interviewedSuspectIds ?? state.interviewedSuspectIds),
+    interviews: updates.interviews ?? state.interviews,
+    notes: updates.notes ?? state.notes,
+    connections: updates.connections ?? state.connections,
+    hypotheses: updates.hypotheses ?? state.hypotheses,
+    contradictionFlags: updates.contradictionFlags ?? state.contradictionFlags,
+    investigationLog: updates.investigationLog ?? state.investigationLog,
+    agentActions: updates.agentActions ?? state.agentActions,
+    agentHypothesis: updates.agentHypothesis !== undefined ? updates.agentHypothesis : state.agentHypothesis,
+    activeView: updates.activeView ?? state.activeView,
+    accusation: updates.accusation !== undefined ? updates.accusation : state.accusation,
+    accusationSubmission: updates.accusationSubmission !== undefined ? updates.accusationSubmission : state.accusationSubmission,
+    accusationEvaluation: updates.accusationEvaluation !== undefined ? updates.accusationEvaluation : state.accusationEvaluation,
+  };
+
+  return {
+    ...updates,
+    caseStates: {
+      ...state.caseStates,
+      [state.activeCaseId]: nextCs,
+    },
+  };
+}
 
 // ─── Store with Persist Middleware ────────────────────────────────────────────
 
 export const useGameStore = create<GameState & GameActions>()(
   persist(
     (set, get) => ({
-      ...INITIAL_STATE,
-      activeCase: THE_GALLERY_MURDER,
+      ...createInitialCaseState(),
+      phase: 'landing',
+      activeCaseId: defaultId,
+      activeCase: defaultCase,
+      caseStates: {
+        [defaultId]: createInitialCaseState(),
+      },
+
+      // ── Case Selection ─────────────────────────────────────────────────────
+
+      selectCase: (caseId) =>
+        set((state) => {
+          const targetCase = getCaseById(caseId);
+          if (!targetCase) return {};
+
+          // Snapshot current active state
+          const currentSnapshot: CaseGameState = {
+            startTime: state.startTime,
+            visitedLocationIds: new Set(state.visitedLocationIds),
+            discoveredEvidenceIds: new Set(state.discoveredEvidenceIds),
+            inspectedEvidenceIds: new Set(state.inspectedEvidenceIds),
+            interviewedSuspectIds: new Set(state.interviewedSuspectIds),
+            interviews: [...state.interviews],
+            notes: [...state.notes],
+            connections: [...state.connections],
+            hypotheses: [...state.hypotheses],
+            contradictionFlags: [...state.contradictionFlags],
+            investigationLog: [...state.investigationLog],
+            agentActions: [...state.agentActions],
+            agentHypothesis: state.agentHypothesis,
+            activeView: state.activeView,
+            accusation: state.accusation,
+            accusationSubmission: state.accusationSubmission,
+            accusationEvaluation: state.accusationEvaluation,
+          };
+
+          const updatedCaseStates = {
+            ...state.caseStates,
+            [state.activeCaseId]: currentSnapshot,
+          };
+
+          const rawTarget = updatedCaseStates[caseId];
+          const targetState: CaseGameState = rawTarget
+            ? {
+                ...rawTarget,
+                visitedLocationIds: new Set(rawTarget.visitedLocationIds),
+                discoveredEvidenceIds: new Set(rawTarget.discoveredEvidenceIds),
+                inspectedEvidenceIds: new Set(rawTarget.inspectedEvidenceIds),
+                interviewedSuspectIds: new Set(rawTarget.interviewedSuspectIds),
+                interviews: [...rawTarget.interviews],
+                notes: [...rawTarget.notes],
+                connections: [...rawTarget.connections],
+                hypotheses: [...rawTarget.hypotheses],
+                contradictionFlags: [...rawTarget.contradictionFlags],
+                investigationLog: [...rawTarget.investigationLog],
+                agentActions: [...rawTarget.agentActions],
+              }
+            : createInitialCaseState();
+
+          return {
+            activeCaseId: caseId,
+            activeCase: targetCase,
+            caseStates: {
+              ...updatedCaseStates,
+              [caseId]: targetState,
+            },
+            ...targetState,
+            phase: 'briefing',
+          };
+        }),
 
       // ── Phase ──────────────────────────────────────────────────────────────
 
       setPhase: (phase) => set({ phase }),
 
       startInvestigation: () =>
-        set({
+        set((state) => ({
+          ...updateActiveCaseState(state, {
+            activeView: 'overview',
+            startTime: state.startTime || Date.now(),
+          }),
           phase: 'investigation',
-          startTime: Date.now(),
-          activeView: 'overview',
-        }),
+        })),
 
       // ── Workspace ──────────────────────────────────────────────────────────
 
-      setActiveView: (view) => set({ activeView: view }),
+      setActiveView: (view) =>
+        set((state) => updateActiveCaseState(state, { activeView: view })),
 
       // ── Locations ──────────────────────────────────────────────────────────
 
@@ -194,11 +317,11 @@ export const useGameStore = create<GameState & GameActions>()(
             });
           }
 
-          return {
+          return updateActiveCaseState(state, {
             visitedLocationIds: newVisited,
             discoveredEvidenceIds: newDiscovered,
             investigationLog: [...state.investigationLog, ...newLogEntries],
-          };
+          });
         }),
 
       // ── Evidence ───────────────────────────────────────────────────────────
@@ -207,13 +330,13 @@ export const useGameStore = create<GameState & GameActions>()(
         set((state) => {
           if (state.discoveredEvidenceIds.has(evidenceId)) return {};
           const ev = state.activeCase.evidence.find((e) => e.id === evidenceId);
-          return {
+          return updateActiveCaseState(state, {
             discoveredEvidenceIds: new Set([...state.discoveredEvidenceIds, evidenceId]),
             investigationLog: [
               ...state.investigationLog,
               makeEvent('evidence_discovered', `Discovered: ${ev?.name ?? evidenceId}`, evidenceId, 'human'),
             ],
-          };
+          });
         }),
 
       inspectEvidence: (evidenceId) =>
@@ -227,10 +350,10 @@ export const useGameStore = create<GameState & GameActions>()(
                 makeEvent('evidence_inspected', `Inspected: ${ev?.name ?? evidenceId}`, evidenceId, 'human'),
               ];
 
-          return {
+          return updateActiveCaseState(state, {
             inspectedEvidenceIds: new Set([...state.inspectedEvidenceIds, evidenceId]),
             investigationLog: newLog,
-          };
+          });
         }),
 
       // ── Interviews ─────────────────────────────────────────────────────────
@@ -255,39 +378,43 @@ export const useGameStore = create<GameState & GameActions>()(
             );
           }
 
-          return {
+          return updateActiveCaseState(state, {
             interviews: [...state.interviews, newEntry],
             interviewedSuspectIds: new Set([
               ...state.interviewedSuspectIds,
               entry.suspectId,
             ]),
             investigationLog: newLog,
-          };
+          });
         }),
 
       // ── Notes ──────────────────────────────────────────────────────────────
 
       addNote: (content, author) =>
-        set((state) => ({
-          notes: [
-            ...state.notes,
-            { id: crypto.randomUUID(), content, author, timestamp: Date.now() },
-          ],
-          investigationLog: [
-            ...state.investigationLog,
-            makeEvent(
-              'note_added',
-              `${author === 'agent' ? 'AGENT' : 'YOU'} added a note: "${content.slice(0, 35)}..."`,
-              undefined,
-              author,
-            ),
-          ],
-        })),
+        set((state) =>
+          updateActiveCaseState(state, {
+            notes: [
+              ...state.notes,
+              { id: crypto.randomUUID(), content, author, timestamp: Date.now() },
+            ],
+            investigationLog: [
+              ...state.investigationLog,
+              makeEvent(
+                'note_added',
+                `${author === 'agent' ? 'AGENT' : 'YOU'} added a note: "${content.slice(0, 35)}..."`,
+                undefined,
+                author,
+              ),
+            ],
+          }),
+        ),
 
       deleteNote: (noteId) =>
-        set((state) => ({
-          notes: state.notes.filter((n) => n.id !== noteId),
-        })),
+        set((state) =>
+          updateActiveCaseState(state, {
+            notes: state.notes.filter((n) => n.id !== noteId),
+          }),
+        ),
 
       // ── Case Board ─────────────────────────────────────────────────────────
 
@@ -311,7 +438,7 @@ export const useGameStore = create<GameState & GameActions>()(
             timestamp: Date.now(),
           };
 
-          return {
+          return updateActiveCaseState(state, {
             connections: [...state.connections, connection],
             investigationLog: [
               ...state.investigationLog,
@@ -322,16 +449,75 @@ export const useGameStore = create<GameState & GameActions>()(
                 author,
               ),
             ],
-          };
+          });
         }),
 
       removeConnection: (connectionId) =>
+        set((state) =>
+          updateActiveCaseState(state, {
+            connections: state.connections.filter((c) => c.id !== connectionId),
+            investigationLog: [
+              ...state.investigationLog,
+              makeEvent('connection_removed', 'Removed a board connection', connectionId),
+            ],
+          }),
+        ),
+
+      // ── Human Deduction Layer Actions ─────────────────────────────────────
+
+      addHypothesis: (hypothesisData) =>
+        set((state) => {
+          const newHyp: PlayerHypothesis = {
+            ...hypothesisData,
+            id: crypto.randomUUID(),
+            createdAt: Date.now(),
+          };
+
+          return updateActiveCaseState(state, {
+            hypotheses: [...state.hypotheses, newHyp],
+            investigationLog: [
+              ...state.investigationLog,
+              makeEvent('connection_made', `Formulated hypothesis: "${newHyp.title}"`, newHyp.id),
+            ],
+          });
+        }),
+
+      updateHypothesis: (id, updates) =>
         set((state) => ({
-          connections: state.connections.filter((c) => c.id !== connectionId),
-          investigationLog: [
-            ...state.investigationLog,
-            makeEvent('connection_removed', `Connection removed`, connectionId, 'human'),
-          ],
+          ...updateActiveCaseState(state, {
+            hypotheses: state.hypotheses.map((h) => (h.id === id ? { ...h, ...updates } : h)),
+          }),
+        })),
+
+      deleteHypothesis: (id) =>
+        set((state) => ({
+          ...updateActiveCaseState(state, {
+            hypotheses: state.hypotheses.filter((h) => h.id !== id),
+          }),
+        })),
+
+      addContradictionFlag: (flagData) =>
+        set((state) => {
+          const newFlag: PlayerContradictionFlag = {
+            ...flagData,
+            id: crypto.randomUUID(),
+            createdAt: Date.now(),
+          };
+
+          return updateActiveCaseState(state, {
+            contradictionFlags: [...state.contradictionFlags, newFlag],
+            investigationLog: [
+              ...state.investigationLog,
+              makeEvent('connection_made', `Flagged contradiction: "${newFlag.title}"`, newFlag.id),
+            ],
+          });
+        }),
+
+      deleteContradictionFlag: (id) =>
+        set((state) => ({
+          ...updateActiveCaseState(state, {
+            contradictionFlags: state.contradictionFlags.filter((f) => f.id !== id),
+          }),
         })),
 
       // ── Agent ──────────────────────────────────────────────────────────────
@@ -346,87 +532,130 @@ export const useGameStore = create<GameState & GameActions>()(
 
           const summaryText = action.summary ?? `[WebMCP] ${action.tool} executed`;
 
-          return {
+          return updateActiveCaseState(state, {
             agentActions: [...state.agentActions, newAction],
             investigationLog: [
               ...state.investigationLog,
               makeEvent('agent_tool_call', `AGENT ${summaryText}`, newAction.id, 'agent'),
             ],
-          };
+          });
         }),
 
       setAgentHypothesis: (hypothesis) =>
-        set((state) => ({
-          agentHypothesis: hypothesis,
-          investigationLog: [
-            ...state.investigationLog,
-            makeEvent(
-              'agent_hypothesis',
-              `AGENT updated hypothesis: "${hypothesis.slice(0, 45)}..."`,
-              undefined,
-              'agent',
-            ),
-          ],
-        })),
+        set((state) =>
+          updateActiveCaseState(state, {
+            agentHypothesis: hypothesis,
+            investigationLog: [
+              ...state.investigationLog,
+              makeEvent(
+                'agent_hypothesis',
+                `AGENT updated hypothesis: "${hypothesis.slice(0, 45)}..."`,
+                undefined,
+                'agent',
+              ),
+            ],
+          }),
+        ),
 
       // ── Accusation ─────────────────────────────────────────────────────────
 
-      makeAccusation: (suspectId, reasoning = '', supportingEvidenceIds = []) =>
-        set({
-          accusation: suspectId,
-          accusationSubmission: {
+      makeAccusation: (suspectId, method = '', motive = '', approximateTime = '', explanation = '', supportingEvidenceIds = []) =>
+        set((state) => {
+          const submissionData: AccusationSubmission = {
             suspectId,
-            reasoning,
+            method,
+            motive,
+            approximateTime,
+            explanation: explanation || method + ' ' + motive,
             supportingEvidenceIds,
             submittedAt: Date.now(),
-          },
-          phase: 'resolution',
+          };
+
+          const evaluation = evaluateAccusation(state.activeCase, submissionData);
+
+          return {
+            ...updateActiveCaseState(state, {
+              accusation: suspectId,
+              accusationSubmission: submissionData,
+              accusationEvaluation: evaluation,
+            }),
+            phase: 'resolution',
+          };
         }),
 
       // ── Reset ──────────────────────────────────────────────────────────────
 
       resetInvestigation: () =>
-        set({
-          ...INITIAL_STATE,
-          startTime: Date.now(),
-          activeCase: get().activeCase,
+        set((state) => {
+          const freshState = createInitialCaseState();
+          return {
+            ...freshState,
+            caseStates: {
+              ...state.caseStates,
+              [state.activeCaseId]: freshState,
+            },
+          };
         }),
     }),
     {
-      name: 'casefile-game-session-v1',
+      name: 'casefile-game-session-v2',
       storage: createJSONStorage(() => localStorage),
-      // Custom serializer / deserializer for Set data structures
       partialize: (state) => ({
         phase: state.phase,
-        startTime: state.startTime,
-        visitedLocationIds: Array.from(state.visitedLocationIds),
-        discoveredEvidenceIds: Array.from(state.discoveredEvidenceIds),
-        inspectedEvidenceIds: Array.from(state.inspectedEvidenceIds),
-        interviewedSuspectIds: Array.from(state.interviewedSuspectIds),
-        interviews: state.interviews,
-        notes: state.notes,
-        connections: state.connections,
-        investigationLog: state.investigationLog,
-        agentActions: state.agentActions,
-        agentHypothesis: state.agentHypothesis,
-        activeView: state.activeView,
-        accusation: state.accusation,
-        accusationSubmission: state.accusationSubmission,
+        activeCaseId: state.activeCaseId,
+        caseStates: Object.fromEntries(
+          Object.entries(state.caseStates || {}).map(([cid, cs]) => [
+            cid,
+            {
+              ...cs,
+              visitedLocationIds: Array.from(cs.visitedLocationIds || []),
+              discoveredEvidenceIds: Array.from(cs.discoveredEvidenceIds || []),
+              inspectedEvidenceIds: Array.from(cs.inspectedEvidenceIds || []),
+              interviewedSuspectIds: Array.from(cs.interviewedSuspectIds || []),
+            },
+          ]),
+        ),
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        // Convert Arrays back to Sets after rehydration
-        if (Array.isArray((state as any).visitedLocationIds)) {
-          state.visitedLocationIds = new Set((state as any).visitedLocationIds);
+        const activeId = state.activeCaseId || getDefaultCaseId();
+        state.activeCaseId = activeId;
+        state.activeCase = getCaseById(activeId) || THE_GALLERY_MURDER;
+
+        if (state.caseStates) {
+          Object.keys(state.caseStates).forEach((cid) => {
+            const cs = state.caseStates[cid] as any;
+            if (cs) {
+              if (Array.isArray(cs.visitedLocationIds)) cs.visitedLocationIds = new Set(cs.visitedLocationIds);
+              if (Array.isArray(cs.discoveredEvidenceIds)) cs.discoveredEvidenceIds = new Set(cs.discoveredEvidenceIds);
+              if (Array.isArray(cs.inspectedEvidenceIds)) cs.inspectedEvidenceIds = new Set(cs.inspectedEvidenceIds);
+              if (Array.isArray(cs.interviewedSuspectIds)) cs.interviewedSuspectIds = new Set(cs.interviewedSuspectIds);
+            }
+          });
+        } else {
+          state.caseStates = {};
         }
-        if (Array.isArray((state as any).discoveredEvidenceIds)) {
-          state.discoveredEvidenceIds = new Set((state as any).discoveredEvidenceIds);
-        }
-        if (Array.isArray((state as any).inspectedEvidenceIds)) {
-          state.inspectedEvidenceIds = new Set((state as any).inspectedEvidenceIds);
-        }
-        if (Array.isArray((state as any).interviewedSuspectIds)) {
-          state.interviewedSuspectIds = new Set((state as any).interviewedSuspectIds);
+
+        const activeCs = state.caseStates[activeId] as any;
+        if (activeCs) {
+          state.startTime = activeCs.startTime ?? Date.now();
+          state.visitedLocationIds = activeCs.visitedLocationIds instanceof Set ? activeCs.visitedLocationIds : new Set();
+          state.discoveredEvidenceIds = activeCs.discoveredEvidenceIds instanceof Set ? activeCs.discoveredEvidenceIds : new Set();
+          state.inspectedEvidenceIds = activeCs.inspectedEvidenceIds instanceof Set ? activeCs.inspectedEvidenceIds : new Set();
+          state.interviewedSuspectIds = activeCs.interviewedSuspectIds instanceof Set ? activeCs.interviewedSuspectIds : new Set();
+          state.interviews = activeCs.interviews ?? [];
+          state.notes = activeCs.notes ?? [];
+          state.connections = activeCs.connections ?? [];
+          state.investigationLog = activeCs.investigationLog ?? [];
+          state.agentActions = activeCs.agentActions ?? [];
+          state.agentHypothesis = activeCs.agentHypothesis ?? null;
+          state.activeView = activeCs.activeView ?? 'overview';
+          state.accusation = activeCs.accusation ?? null;
+          state.accusationSubmission = activeCs.accusationSubmission ?? null;
+        } else {
+          const fresh = createInitialCaseState();
+          state.caseStates[activeId] = fresh;
+          Object.assign(state, fresh);
         }
       },
     },

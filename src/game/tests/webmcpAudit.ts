@@ -224,26 +224,34 @@ export async function runWebMCPAuditSuite(): Promise<{
 
   const wrongAccusationRes = await executeWebMCPTool('submit_accusation', {
     suspect_id: 'marcus-cole',
-    reasoning: 'He argued with Daniel.',
+    method: 'Public argument',
+    motive: 'Forgery debate',
+    approximate_time: '9:00 PM',
+    explanation: 'He argued with Daniel.',
+    supporting_evidence_ids: [],
   });
 
   recordTest(
     'submit_accusation',
-    'Incorrect Accusation Evaluation',
-    wrongAccusationRes.data?.isCorrect === false,
-    `PASS: Correctly rejected wrong suspect. Verdict: "${wrongAccusationRes.data?.verdict}"`,
+    'Incomplete Accusation Evaluation',
+    wrongAccusationRes.data?.passed === false && wrongAccusationRes.data?.totalScore < 80,
+    `PASS: Correctly returned incomplete theory response (Score ${wrongAccusationRes.data?.totalScore}/100). Verdict: "${wrongAccusationRes.data?.verdict}"`,
   );
 
   const correctAccusationRes = await executeWebMCPTool('submit_accusation', {
     suspect_id: 'victoria-adeyemi',
-    reasoning: 'Keycard at 10:19 PM, cyanide vial, deleted CCTV.',
+    method: 'Potassium cyanide poisoning in wine glass during gala',
+    motive: 'Prevent gallery embezzlement and forgery scandal exposure',
+    approximate_time: '10:19 PM gala window',
+    explanation: 'Victoria used master keycard at 10:19 PM, planted cyanide vial, and bribed guard to delete CCTV.',
+    supporting_evidence_ids: ['cyanide-vial', 'master-keycard-log', 'bribed-guard-confession', 'torn-financial-journal'],
   });
 
   recordTest(
     'submit_accusation',
-    'Correct Accusation Evaluation',
-    correctAccusationRes.data?.isCorrect === true,
-    `PASS: Correctly verified killer. Verdict: "${correctAccusationRes.data?.verdict}"`,
+    'Complete Accusation Evaluation (Passed Threshold)',
+    correctAccusationRes.data?.passed === true && correctAccusationRes.data?.totalScore >= 80,
+    `PASS: Correctly verified theory (Score ${correctAccusationRes.data?.totalScore}/100). Verdict: "${correctAccusationRes.data?.verdict}"`,
   );
 
   const totalTests = results.length;

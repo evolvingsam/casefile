@@ -5,12 +5,23 @@
  */
 
 import { runWebMCPAuditSuite } from './webmcpAudit';
+import { runSecurityAuditSuite } from './webmcpSecurityAudit';
+import { runPlaytestCase052 } from './playtestCase052';
 import * as fs from 'fs';
 import * as path from 'path';
 
 async function main() {
-  console.log('Running WebMCP Audit Suite...');
+  console.log('Running Playtest for Case #052...');
+  await runPlaytestCase052();
+
+  console.log('\nRunning WebMCP Integration Audit Suite...');
   const audit = await runWebMCPAuditSuite();
+  console.log(`Integration Audit Summary: Total=${audit.totalTests}, Passed=${audit.passCount}, Failed=${audit.failCount}`);
+
+  console.log('Running WebMCP Security & Data Privacy Audit Suite...');
+  const secAudit = await runSecurityAuditSuite();
+  console.log(`Security Audit Summary: Total=${secAudit.totalTests}, Passed=${secAudit.passCount}, Failed=${secAudit.failCount}`);
+  secAudit.results.forEach((r) => console.log(`  [${r.passed ? 'PASS' : 'FAIL'}] ${r.vector} - ${r.testName}: ${r.details}`));
 
   const reportMarkdown = `# WebMCP Integration Test Report — Casefile
 

@@ -12,6 +12,7 @@ import { LocationsView }  from '@/components/game/LocationsView';
 import { EvidenceView }   from '@/components/game/EvidenceView';
 import { SuspectsView }   from '@/components/game/SuspectsView';
 import { TimelineView }   from '@/components/game/TimelineView';
+import { DeductionView }  from '@/components/game/DeductionView';
 import { CaseBoardView }  from '@/components/game/CaseBoardView';
 import { AgentView }      from '@/components/game/AgentView';
 import { Button } from '@/components/ui/Button';
@@ -20,14 +21,15 @@ function ViewRouter() {
   const activeView = useGameStore((s) => s.activeView);
 
   switch (activeView) {
-    case 'overview':  return <OverviewView />;
-    case 'locations': return <LocationsView />;
-    case 'evidence':  return <EvidenceView />;
-    case 'suspects':  return <SuspectsView />;
-    case 'timeline':  return <TimelineView />;
-    case 'caseboard': return <CaseBoardView />;
-    case 'agent':     return <AgentView />;
-    default:          return <OverviewView />;
+    case 'overview':   return <OverviewView />;
+    case 'locations':  return <LocationsView />;
+    case 'evidence':   return <EvidenceView />;
+    case 'suspects':   return <SuspectsView />;
+    case 'timeline':   return <TimelineView />;
+    case 'deductions': return <DeductionView />;
+    case 'caseboard':  return <CaseBoardView />;
+    case 'agent':      return <AgentView />;
+    default:           return <OverviewView />;
   }
 }
 

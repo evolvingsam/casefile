@@ -18,9 +18,13 @@ export const THE_GALLERY_MURDER: Case = {
   caseNumber: '#047',
   title: 'The Gallery Murder',
   subtitle: 'A crime behind closed doors',
+  difficulty: 'Intermediate',
+  estimatedTime: '20-30 mins',
+  status: 'available',
   victim: 'Daniel Adeyemi',
   victimDescription:
     'Wealthy art dealer and co-founder of Adeyemi & Bello Fine Art. Found dead in his private office at 11:47 PM during a members-only evening showing. Time of death estimated between 10:30 PM and 11:00 PM.',
+  objective: 'Determine who killed Daniel Adeyemi, how, why, and when.',
   briefing:
     'Daniel Adeyemi, 52, was found slumped behind his private office desk by security guard Michael Grant during a routine 11:45 PM check. The gallery had been hosting an exclusive members evening — five people were still on the premises when the body was found. A crystal whiskey tumbler sat on the desk. There were no signs of forced entry. Everyone had a reason to be there. One of them had a reason to want Daniel dead.',
 
@@ -786,4 +790,53 @@ export const THE_GALLERY_MURDER: Case = {
       'will-amendment',
     ],
   },
+
+  // ─── Hidden Relationships ──────────────────────────────────────────────────
+
+  hiddenRelationships: [
+    {
+      sourceId: 'sarah-okafor',
+      targetId: 'daniel-adeyemi',
+      relationshipType: 'Secret Daughter',
+      description: 'Sarah Okafor and Daniel Adeyemi had a 12-year-old daughter named Emma whom Daniel supported financially.',
+      requiresEvidenceIds: ['divorce-filing', 'will-amendment'],
+    },
+    {
+      sourceId: 'victoria-adeyemi',
+      targetId: 'daniel-adeyemi',
+      relationshipType: 'Impending Divorce & Disinheritance',
+      description: 'Victoria discovered Daniel was filing for divorce and altering his will to leave the estate to Emma.',
+      requiresEvidenceIds: ['divorce-filing', 'will-amendment'],
+    },
+    {
+      sourceId: 'victoria-adeyemi',
+      targetId: 'michael-grant',
+      relationshipType: 'Bribe & CCTV Tampering',
+      description: 'Victoria bribed security guard Michael Grant £3,000 to erase 8 minutes of corridor CCTV footage.',
+      requiresEvidenceIds: ['cash-deposit', 'cctv-gap'],
+    },
+  ],
+
+  // ─── Deduction Requirements ────────────────────────────────────────────────
+
+  deductionRequirements: [
+    {
+      id: 'req-poison',
+      title: 'Cause of Death & Poison Source',
+      description: 'Identify potassium cyanide as the poison and trace it back to Victoria Adeyemi\'s clinic.',
+      requiredEvidenceIds: ['whiskey-glass', 'cyanide-vial', 'pharmacy-order'],
+    },
+    {
+      id: 'req-access',
+      title: 'Office Access & Opportunity',
+      description: 'Establish that Victoria used her keycard at 10:19 PM via the courtyard side door during the CCTV gap.',
+      requiredEvidenceIds: ['keycard-log', 'cctv-gap', 'side-door-log'],
+    },
+    {
+      id: 'req-motive',
+      title: 'Financial & Personal Motive',
+      description: 'Uncover the divorce petition and revised will that drove Victoria to eliminate Daniel.',
+      requiredEvidenceIds: ['divorce-filing', 'will-amendment'],
+    },
+  ],
 };

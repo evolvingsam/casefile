@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useGameStore } from '@/game/state/store';
 import type { AppPhase, WorkspaceView } from '@/game/types';
 import { LandingPage }             from '@/components/game/LandingPage';
+import { CaseSelectionPage }       from '@/components/game/CaseSelectionPage';
 import { BriefingPage }            from '@/components/game/BriefingPage';
 import { InvestigationWorkspace }  from '@/components/layout/InvestigationWorkspace';
 import { ResolutionPage }          from '@/components/game/ResolutionPage';
@@ -15,7 +16,7 @@ function parseHash(): { phase: AppPhase | null; view: WorkspaceView | null } {
   if (!hashStr) return { phase: null, view: null };
 
   const [phasePart, queryPart] = hashStr.split('?');
-  const validPhases: AppPhase[] = ['landing', 'briefing', 'investigation', 'resolution'];
+  const validPhases: AppPhase[] = ['landing', 'cases', 'briefing', 'investigation', 'resolution'];
   const phase = validPhases.includes(phasePart as AppPhase) ? (phasePart as AppPhase) : null;
 
   let view: WorkspaceView | null = null;
@@ -94,6 +95,7 @@ export function AppShell() {
 
   switch (phase) {
     case 'landing':       return <LandingPage />;
+    case 'cases':         return <CaseSelectionPage />;
     case 'briefing':      return <BriefingPage />;
     case 'investigation': return <InvestigationWorkspace />;
     case 'resolution':    return <ResolutionPage />;

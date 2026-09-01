@@ -20,7 +20,9 @@ import type {
   LocationId,
   InterviewEntry,
   InvestigationProgress,
+  AccusationSubmission,
 } from '@/game/types';
+import { evaluateAccusation } from '@/game/logic/evaluation';
 import {
   getLocationEvidence,
   getDiscoveredEvidence,
@@ -82,7 +84,7 @@ export const gameService = {
       subtitle: caseData.subtitle,
       victim: caseData.victim,
       victimDescription: caseData.victimDescription,
-      objective: 'Determine who killed Daniel Adeyemi, how, why, and when.',
+      objective: caseData.objective ?? `Determine who killed ${caseData.victim}, how, why, and when.`,
       discoveredEvidenceCount: store.discoveredEvidenceIds.size,
       totalEvidenceCount: caseData.evidence.length,
       discoveredEvidence: discovered.map((e) => ({
@@ -189,8 +191,6 @@ export const gameService = {
       tags: evidence.tags,
       relatedSuspects: relatedSuspects.map((s) => ({ id: s.id, name: s.name, title: s.title })),
       relatedDiscoveredEvidence: relatedEvidence.map((re) => ({ id: re.id, name: re.name })),
-      isRedHerring: evidence.isRedHerring,
-      hiddenSignificance: evidence.hiddenSignificance,
     };
   },
 
@@ -427,55 +427,67 @@ export const gameService = {
 
   /**
    * 9. submit_accusation
-   * Evaluates an accusation against the actual solution.
+   * Evaluates a complete theory accusation against the case's hidden solution.
    */
-  submitAccusation(suspectId: SuspectId, reasoning: string) {
+  submitAccusation(
+    suspectId: SuspectId,
+    method: string = '',
+    motive: string = '',
+    approximateTime: string = '',
+    explanation: string = '',
+    supportingEvidenceIds: EvidenceId[] = [],
+  ) {
     const store = useGameStore.getState();
     const caseData = store.activeCase;
-    const solution = caseData.solution;
 
     const suspect = caseData.suspects.find((s) => s.id === suspectId);
     if (!suspect) {
       throw new Error(`Suspect with ID '${suspectId}' not found.`);
     }
 
-    const isCorrect = suspectId === solution.killerId;
+    const submission: AccusationSubmission = {
+      suspectId,
+      method,
+      motive,
+      approximateTime,
+      explanation: explanation || method + ' ' + motive,
+      supportingEvidenceIds,
+      submittedAt: Date.now(),
+    };
 
-    // Check which key solution evidence items the player/agent has discovered
-    const keyDiscovered = solution.keyEvidenceIds.filter((eid) =>
-      store.discoveredEvidenceIds.has(eid),
+    const evaluation = evaluateAccusation(caseData, submission);
+
+    // Record accusation and evaluation in store
+    store.makeAccusation(
+      suspectId,
+      method,
+      motive,
+      approximateTime,
+      explanation,
+      supportingEvidenceIds,
     );
-    const keyMissing = solution.keyEvidenceIds.filter(
-      (eid) => !store.discoveredEvidenceIds.has(eid),
-    );
 
-    const supportingEvidence = keyDiscovered.map((eid) => {
-      const e = caseData.evidence.find((item) => item.id === eid);
-      return { id: eid, name: e?.name ?? eid };
-    });
-
-    const missingEvidence = keyMissing.map((eid) => {
-      const e = caseData.evidence.find((item) => item.id === eid);
-      return { id: eid, name: e?.name ?? eid };
-    });
-
-    // Record accusation in store
-    store.makeAccusation(suspectId);
+    if (!evaluation.passedThreshold) {
+      return {
+        passed: false,
+        totalScore: evaluation.totalScore,
+        verdict: `INCOMPLETE THEORY — Score ${evaluation.totalScore}/100`,
+        feedback: evaluation.feedbackLines,
+        elementBreakdown: evaluation.elementBreakdown,
+        message:
+          'The submitted theory does not meet the passing threshold (80/100). Review targeted feedback, gather more evidence, and revise your theory.',
+      };
+    }
 
     return {
-      accusation: {
-        accusedSuspectId: suspect.id,
-        accusedSuspectName: suspect.name,
-        reasoningSubmitted: reasoning,
-      },
-      isCorrect,
-      verdict: isCorrect ? 'GUILTY — Accusation Correct!' : 'WRONG ACCUSATION — Suspect is Innocent',
-      actualKiller: isCorrect ? suspect.name : '(Revealed on resolution page)',
-      supportingEvidenceFound: supportingEvidence,
-      keyEvidenceMissing: missingEvidence,
-      caseOutcome: isCorrect
-        ? `Congratulations! ${suspect.name} was successfully convicted based on key evidence.`
-        : `The case remains open. ${suspect.name} has a valid defense and could not be convicted.`,
+      passed: true,
+      totalScore: evaluation.totalScore,
+      verdict: `CASE SOLVED — Score ${evaluation.totalScore}/100`,
+      feedback: evaluation.feedbackLines,
+      elementBreakdown: evaluation.elementBreakdown,
+      solution: caseData.solution,
+      comparison: evaluation.comparison,
+      message: 'Congratulations! Your theory met the threshold and solved the case.',
     };
   },
 };

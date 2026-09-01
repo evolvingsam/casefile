@@ -22,36 +22,34 @@ export interface WebMCPToolDefinition {
   handler: (params: Record<string, any>) => Promise<any> | any;
 }
 
-// Compute dynamic agent hypothesis based on discovered evidence
-function computeAgentHypothesis(): string {
+// Compute dynamic agent hypothesis based strictly on discovered evidence
+export function computeAgentHypothesis(): string {
   const store = useGameStore.getState();
   const caseData = store.activeCase;
   const discovered = store.discoveredEvidenceIds;
   const inspected = store.inspectedEvidenceIds;
 
-  const hasCyanide = inspected.has('cyanide-vial') || inspected.has('pharmacy-order');
-  const hasKeycard = inspected.has('keycard-log');
-  const hasCctvGap = inspected.has('cctv-gap');
-  const hasMarcusArg = discovered.has('cctv-argument');
-  const hasJamesTransfers = discovered.has('bank-transfer');
+  const totalEv = caseData.evidence.length;
+  const ratio = totalEv > 0 ? inspected.size / totalEv : 0;
 
-  if (hasCyanide && hasKeycard && hasCctvGap) {
-    return 'HIGH CONFIDENCE: Victoria Adeyemi is the prime suspect. Poison traced to her clinic (cyanide-vial), keycard places her in office at 10:19 PM, and CCTV gap was paid for via Michael Grant (£3,000 cash deposit).';
+  // Check if any contradiction timeline event has been uncovered by discovered evidence
+  const contradictionFound = caseData.timeline.some(
+    (t) => t.isContradiction && t.evidenceIds.some((eid) => discovered.has(eid)),
+  );
+
+  if (ratio >= 0.6 || contradictionFound) {
+    return `HIGH PROGRESS: Discovered key physical evidence and timeline discrepancies. Compare location access logs and physical receipts with suspect statements in your Deduction Workspace.`;
   }
 
-  if (hasCyanide || hasKeycard) {
-    return 'MODERATE CONFIDENCE: Investigating Victoria Adeyemi. Keycard log contradicts her alibi and chemical evidence points toward pharmaceutical supply access.';
+  if (ratio >= 0.3 || discovered.size >= 3) {
+    return `MODERATE PROGRESS: Evaluating ${discovered.size} discovered clues across case locations. Cross-referencing suspect statements against physical access records.`;
   }
 
-  if (hasJamesTransfers) {
-    return 'PRELIMINARY HYPOTHESIS: James Bello has strong financial motive (£160k embezzlement), but his main gallery alibi is corroborated by multiple witnesses. Testing for alternative suspects.';
+  if (discovered.size > 0) {
+    return `PRELIMINARY ANALYSIS: Evaluating ${discovered.size} discovered clues across locations and cross-referencing statements from all ${caseData.suspects.length} persons of interest.`;
   }
 
-  if (hasMarcusArg) {
-    return 'PRELIMINARY HYPOTHESIS: Marcus Cole had a heated argument at 8:45 PM over painting forgery, but CCTV confirms he exited by cab at 9:28 PM before the murder window.';
-  }
-
-  return 'INITIAL HYPOTHESIS: Gathering evidence across gallery locations and questioning all 5 persons of interest to establish timeline and opportunity.';
+  return `INITIAL ANALYSIS: Exploring case locations and interviewing persons of interest to establish initial timeline and opportunity.`;
 }
 
 // Generate human-readable summary & classification for agent activity panel
@@ -70,11 +68,10 @@ function summarizeResult(tool: string, params: Record<string, any>, result: any)
   }
 
   if (tool === 'inspect_evidence') {
-    const isRedHerring = result.isRedHerring;
     return {
       summary: `Inspected [${result.name}]: ${result.detailedDescription?.slice(0, 70)}...`,
-      kind: isRedHerring ? 'warning' : 'discovery',
-      status: isRedHerring ? 'warning' : 'success',
+      kind: 'discovery',
+      status: 'success',
     };
   }
 
@@ -275,7 +272,7 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'get_suspects',
     description:
-      'Retrieve structured directory of all 5 persons of interest (Marcus Cole, Sarah Okafor, James Bello, Victoria Adeyemi, Michael Grant). Includes occupations, relationships to victim, interview completion status, and statement contradiction alerts. Use when evaluating who had motive or opportunity.',
+      'Retrieve structured directory of all persons of interest for the active case. Includes occupations, relationships to victim, interview completion status, and statement contradiction alerts. Use when evaluating who had motive or opportunity.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -288,13 +285,13 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'get_suspect_profile',
     description:
-      'Get comprehensive dossier for a specific suspect by ID (e.g., "victoria-adeyemi", "marcus-cole"). Returns background, stated alibi, surface motive, initial statement, list of linked evidence, interview transcript history, and available/locked interrogation question IDs. Use before questioning a suspect or cross-referencing their alibi.',
+      'Get comprehensive dossier for a specific suspect by ID. Returns background, stated alibi, surface motive, initial statement, list of linked evidence, interview transcript history, and available/locked interrogation question IDs. Use before questioning a suspect or cross-referencing their alibi.',
     inputSchema: {
       type: 'object',
       properties: {
         suspect_id: {
           type: 'string',
-          description: 'Unique suspect ID (e.g., "victoria-adeyemi", "marcus-cole", "james-bello", "sarah-okafor", "michael-grant").',
+          description: 'Unique suspect ID string.',
         },
       },
       required: ['suspect_id'],
@@ -354,29 +351,50 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'submit_accusation',
     description:
-      'Formally submit an investigative recommendation or accusation against a suspect with supporting reasoning. Evaluates your deduction against the case solution, checks key supporting evidence found vs missing, and records the formal verdict. Use when you have gathered sufficient proof to identify the killer.',
+      'Formally submit a complete theory accusation containing suspected perpetrator, method, motive, approximate time, detailed explanation, and supporting evidence IDs. Evaluates the theory using partial scoring (100 pts) against the case solution. If score is below 80, outputs targeted spoil-free feedback without leaking the solution so you can revise.',
     inputSchema: {
       type: 'object',
       properties: {
         suspect_id: {
           type: 'string',
-          description: 'ID of the suspect accused of the murder (e.g., "victoria-adeyemi").',
+          description: 'ID of the accused suspect (e.g. "victoria-adeyemi", "nadia-yusuf", "miriam-bello").',
         },
-        reasoning: {
+        method: {
           type: 'string',
-          description: 'Detailed deduction explaining motive, method, opportunity, and supporting evidence.',
+          description: 'Proposed murder/theft method and execution mechanism.',
+        },
+        motive: {
+          type: 'string',
+          description: 'Proposed underlying financial, personal, or corporate motive.',
+        },
+        approximate_time: {
+          type: 'string',
+          description: 'Estimated opportunity window / timestamp of the crime.',
+        },
+        explanation: {
+          type: 'string',
+          description: 'Comprehensive deductive explanation linking facts together.',
+        },
+        supporting_evidence_ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of evidence IDs supporting this accusation.',
         },
       },
-      required: ['suspect_id', 'reasoning'],
+      required: ['suspect_id'],
     },
     handler: createToolHandler('submit_accusation', (params) => {
       if (!params.suspect_id || typeof params.suspect_id !== 'string') {
         throw new Error('Parameter "suspect_id" (string) is required.');
       }
-      if (!params.reasoning || typeof params.reasoning !== 'string') {
-        throw new Error('Parameter "reasoning" (string) is required.');
-      }
-      return gameService.submitAccusation(params.suspect_id, params.reasoning);
+      return gameService.submitAccusation(
+        params.suspect_id,
+        params.method || '',
+        params.motive || '',
+        params.approximate_time || '',
+        params.explanation || params.reasoning || '',
+        Array.isArray(params.supporting_evidence_ids) ? params.supporting_evidence_ids : [],
+      );
     }),
   },
 ];

@@ -49,21 +49,21 @@ export function AgentRecommendationCard() {
             className="text-xs font-mono font-bold uppercase tracking-widest"
             style={{ color: 'var(--color-amber)' }}
           >
-            AI Investigative Conclusion
+            AI Investigative Assistant Guidance
           </span>
         </div>
 
         <Badge variant={confidenceBadgeVariant}>
-          {recommendation.confidence} Confidence ({recommendation.confidencePercentage}%)
+          {recommendation.confidence} Guidance Progress ({recommendation.confidencePercentage}%)
         </Badge>
       </div>
 
-      {/* Recommended Suspect */}
+      {/* Guidance Focus Area */}
       <div>
         <p className="text-xs uppercase tracking-widest mb-1" style={{ color: 'var(--color-text-muted)' }}>
-          Recommended Prime Suspect
+          Investigative Direction & Focus Area
         </p>
-        <h3 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-playfair)' }}>
+        <h3 className="text-xl font-bold" style={{ fontFamily: 'var(--font-playfair)' }}>
           {recommendation.suspectName}
         </h3>
         <p className="text-xs mt-1 leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>

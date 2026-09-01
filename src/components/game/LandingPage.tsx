@@ -70,7 +70,7 @@ export function LandingPage() {
             &ldquo;Solve the mystery. Work with an AI investigator.&rdquo;
           </blockquote>
           <p className="text-sm font-mono text-muted">
-            Case #047 — The Gallery Murder
+            Multi-Case Investigation Platform · Active: Case #047
           </p>
         </div>
 
@@ -96,20 +96,28 @@ export function LandingPage() {
               ⚡ Powered by WebMCP
             </h3>
             <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
-              Exposes 9 structured WebMCP tools (<code className="text-amber-400">search_evidence</code>, <code className="text-amber-400">inspect_evidence</code>, <code className="text-amber-400">interview_suspect</code>, <code className="text-amber-400">build_timeline</code>, etc.) allowing autonomous AI agents to operate the game directly.
+              Exposes 9 structured WebMCP tools (<code className="text-amber-400">search_evidence</code>, <code className="text-amber-400">inspect_evidence</code>, <code className="text-amber-400">interview_suspect</code>, <code className="text-amber-400">build_timeline</code>, etc.) operating dynamically per case.
             </p>
           </div>
         </div>
 
         {/* Start Button */}
-        <div className="pt-2">
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
           <Button
             variant="primary"
             size="lg"
             className="px-10 py-4 text-base tracking-wider font-semibold cursor-pointer shadow-xl hover:scale-105 transition-transform"
+            onClick={() => setPhase('cases')}
+          >
+            BROWSE CASE FILES →
+          </Button>
+          <Button
+            variant="secondary"
+            size="lg"
+            className="px-8 py-4 text-base tracking-wider font-semibold cursor-pointer hover:scale-105 transition-transform"
             onClick={() => setPhase('briefing')}
           >
-            START INVESTIGATION →
+            PLAY CASE #047
           </Button>
         </div>
 

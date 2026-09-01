@@ -218,7 +218,7 @@ export function getInvestigationProgress(
   };
 }
 
-// ─── Agent Recommendation Logic ──────────────────────────────────────────────
+// ─── Agent Recommendation & Assistant Guidance Logic ──────────────────────────
 
 export function getAgentRecommendation(
   caseData: Case,
@@ -226,68 +226,63 @@ export function getAgentRecommendation(
   inspectedEvidenceIds: Set<EvidenceId>,
   interviewedSuspectIds: Set<SuspectId>,
 ): AgentRecommendation {
-  const solution = caseData.solution;
-  const killer = caseData.suspects.find((s) => s.id === solution.killerId);
+  const discoveredEv = caseData.evidence.filter((e) => discoveredEvidenceIds.has(e.id));
+  const discoveredCount = discoveredEv.length;
+  const totalCount = caseData.evidence.length;
+  const ratio = totalCount > 0 ? discoveredCount / totalCount : 0;
 
-  const victoriaKeyClues = [
-    'keycard-log',
-    'cyanide-vial',
-    'pharmacy-order',
-    'cctv-gap',
-    'side-door-log',
-    'divorce-filing',
-    'will-amendment',
-    'cash-deposit',
-  ];
-
-  const victoriaFound = victoriaKeyClues.filter((eid) => discoveredEvidenceIds.has(eid));
-  const foundCount = victoriaFound.length;
+  // Check for discovered timeline contradictions
+  const contradictionEvent = caseData.timeline.find(
+    (e) => e.isContradiction && e.evidenceIds.some((eid) => discoveredEvidenceIds.has(eid)),
+  );
 
   let confidence: 'Low' | 'Moderate' | 'High' | 'Conclusive' = 'Low';
   let percentage = 35;
 
-  if (foundCount >= 6) {
+  if (ratio >= 0.75) {
     confidence = 'Conclusive';
-    percentage = 98;
-  } else if (foundCount >= 4) {
+    percentage = 92;
+  } else if (ratio >= 0.5) {
     confidence = 'High';
-    percentage = 85;
-  } else if (foundCount >= 2) {
+    percentage = 78;
+  } else if (ratio >= 0.25) {
     confidence = 'Moderate';
-    percentage = 62;
+    percentage = 55;
   } else {
     confidence = 'Low';
     percentage = 35;
   }
 
-  const supportingNames = victoriaFound
-    .map((eid) => caseData.evidence.find((e) => e.id === eid)?.name)
-    .filter((n): n is string => n !== undefined);
+  // Supporting evidence titles (only discovered items)
+  const supportingNames = discoveredEv.slice(0, 6).map((e) => e.name);
 
-  let contradictionSummary = undefined;
-  if (discoveredEvidenceIds.has('keycard-log')) {
-    contradictionSummary =
-      "Victoria's statement claims she remained in the main gallery all evening, but keycard log confirms entry to private office at 10:19 PM.";
+  // Formulate investigative guidance strictly based on discovered clues
+  let reasoning = '';
+  if (contradictionEvent) {
+    reasoning = `Discovered evidence indicates a significant discrepancy: "${contradictionEvent.description}". Compare location access logs and physical receipts with suspect statements to evaluate opportunity.`;
+  } else if (ratio >= 0.5) {
+    reasoning = `Multiple physical clues have been discovered across case locations. Examine the timeline for gaps or unmonitored intervals, and cross-reference purchase receipts against access records in your Deduction Workspace.`;
+  } else if (ratio >= 0.25) {
+    reasoning = `Preliminary observations gathered. Focus on searching unexplored locations and interviewing remaining persons of interest to establish timeline and access opportunity.`;
+  } else {
+    reasoning = `Initial stage: Explore all case locations, inspect physical evidence, and question persons of interest to build your observation framework.`;
   }
 
-  let reasoning =
-    'Based on financial motive (divorce filing, will amendment) and physical evidence (keycard log entry at 10:19 PM, cyanide vial batch matching her clinic, 8-minute CCTV corridor gap).';
-
-  if (foundCount < 2) {
-    reasoning =
-      'Preliminary analysis: Victoria Adeyemi had direct access to pharmaceutical supply and stands to lose her estate in the pending divorce. Further evidence required.';
+  let contradictionSummary = undefined;
+  if (contradictionEvent) {
+    contradictionSummary = contradictionEvent.description;
   }
 
   return {
-    suspectId: killer?.id ?? 'victoria-adeyemi',
-    suspectName: killer?.name ?? 'Victoria Adeyemi',
+    suspectId: 'suspects-under-review',
+    suspectName: 'Persons of Interest Under Review',
     confidence,
     confidencePercentage: percentage,
     reasoning,
-    supportingEvidenceIds: victoriaFound,
-    supportingEvidenceNames: supportingNames.length > 0 ? supportingNames : ['Divorce petition draft'],
+    supportingEvidenceIds: discoveredEv.map((e) => e.id),
+    supportingEvidenceNames: supportingNames.length > 0 ? supportingNames : ['Initial investigation clues'],
     contradictionSummary,
     recommendedAction:
-      'Review supporting evidence and submit formal accusation when ready. Human confirmation required.',
+      'Review discovered clues, connect evidence, and test hypotheses in your Deduction Workspace. The human detective retains final conclusion authority.',
   };
 }
