@@ -44,7 +44,7 @@ export interface Location {
   evidenceIds: EvidenceId[];
 }
 
-// ─── Evidence ─────────────────────────────────────────────────────────────────
+// ─── Evidence (Client Public Model) ──────────────────────────────────────────
 
 export interface Evidence {
   id: EvidenceId;
@@ -55,8 +55,8 @@ export interface Evidence {
   tags: string[];
   relatedSuspectIds: SuspectId[];
   relatedEvidenceIds: EvidenceId[];
-  isRedHerring: boolean;
-  contributesToSolution: boolean;
+  isRedHerring?: boolean;
+  contributesToSolution?: boolean;
   hiddenSignificance?: string;
 }
 

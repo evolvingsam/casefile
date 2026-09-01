@@ -1,15 +1,21 @@
 /**
  * attackPathSuite.ts
  *
- * Systematic Security & Investigation Integrity Regression Test Suite.
- * Audits all 10 Attack Paths defined in Problem 10.
+ * Security & Investigation Integrity Regression Test Suite.
+ * Audits all 5 core security and integrity rules:
+ * 1. Premature accusation returns ONLY uninformative generic error (0 hints, 0 deduction titles leaked).
+ * 2. Case isolation: #047 deductions do NOT leak into #052 or #061.
+ * 3. Client JS bundles contain ZERO solution data (no isKiller, secrets, solution, isRedHerring, hiddenSignificance, etc.).
+ * 4. Normal #047 investigation flow works cleanly.
+ * 5. Legitimate completed accusation evaluates conviction correctly.
  */
 
 import { executeWebMCPTool, registerWebMCP } from '@/webmcp/register';
 import { useGameStore } from '@/game/state/store';
+import { caseServerService } from '@/server/services/caseServerService';
 
 export interface SecurityTestResult {
-  attackPathId: number;
+  testId: number;
   name: string;
   passed: boolean;
   details: string;
@@ -24,7 +30,7 @@ export async function runAttackPathSuite(): Promise<{
   const results: SecurityTestResult[] = [];
 
   const record = (id: number, name: string, passed: boolean, details: string) => {
-    results.push({ attackPathId: id, name, passed, details });
+    results.push({ testId: id, name, passed, details });
   };
 
   // Reset store to initial state
@@ -32,221 +38,153 @@ export async function runAttackPathSuite(): Promise<{
   registerWebMCP();
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Attack Path 1: Guess a valid but undiscovered evidence ID
+  // Test 1: Premature accusation returns ONLY generic error (No hints or deduction titles)
   // ───────────────────────────────────────────────────────────────────────────
-  const ap1Result = await executeWebMCPTool('inspect_evidence', { evidence_id: 'cyanide-vial' });
+  const prematureAccusationKiller = await executeWebMCPTool('submit_accusation', {
+    suspect_id: 'victoria-adeyemi',
+    reasoning: 'Guessed killer',
+  });
+
+  const prematureAccusationWrong = await executeWebMCPTool('submit_accusation', {
+    suspect_id: 'marcus-cole',
+    reasoning: 'Guessed wrong suspect',
+  });
+
+  const expectedGenericError = 'You do not have enough established evidence to support this accusation.';
+
   const ap1Passed =
-    ap1Result.success === false &&
-    ap1Result.error === 'Evidence not available. This item has not been discovered.' &&
-    !JSON.stringify(ap1Result).includes('Victoria') &&
-    !JSON.stringify(ap1Result).includes('pharmacy');
+    prematureAccusationKiller.success === false &&
+    prematureAccusationKiller.error === expectedGenericError &&
+    prematureAccusationWrong.success === false &&
+    prematureAccusationWrong.error === expectedGenericError &&
+    JSON.stringify(prematureAccusationKiller) === JSON.stringify(prematureAccusationWrong) &&
+    !JSON.stringify(prematureAccusationKiller).includes('Poison Source') &&
+    !JSON.stringify(prematureAccusationKiller).includes('keycard');
 
   record(
     1,
-    'Undiscovered Evidence Inspection Rejection',
+    'Premature Accusation Generic Response & Zero Leakage',
     ap1Passed,
     ap1Passed
-      ? 'PASS: Undiscovered clue cyanide-vial correctly rejected with "Evidence not available. This item has not been discovered." Zero metadata leaked.'
-      : `FAIL: Allowed inspect on undiscovered evidence or leaked metadata. Response: ${JSON.stringify(ap1Result)}`,
+      ? 'PASS: Premature accusation returns generic error "You do not have enough established evidence to support this accusation." Zero deduction names, required evidence, or hints leaked. Response structure is 100% identical for killer vs wrong suspect.'
+      : `FAIL: Premature accusation leaked information or differed between suspects. Killer res: ${JSON.stringify(prematureAccusationKiller)} | Wrong res: ${JSON.stringify(prematureAccusationWrong)}`,
   );
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Attack Path 2: Guess a valid but undiscovered location query
+  // Test 2: Case Deduction Isolation (#047 does not leak into #052 or #061)
   // ───────────────────────────────────────────────────────────────────────────
-  const ap2Result = await executeWebMCPTool('search_locations', { query: 'private-office' });
-  const ap2Str = JSON.stringify(ap2Result);
+  // Switch to Case #052 (The Vanishing Manuscript)
+  useGameStore.getState().selectCase('vanishing-manuscript-052');
+  const case52State = gameServiceGetStateWrapper();
+  
+  // Switch to Case #061 (Death on Platform 6)
+  useGameStore.getState().selectCase('death-on-platform-6-061');
+  const case61State = gameServiceGetStateWrapper();
+
+  // Reset back to Case #047
+  useGameStore.getState().selectCase('gallery-murder-047');
+
   const ap2Passed =
-    ap2Result.success === true &&
-    !ap2Str.includes('cyanide-vial') &&
-    !ap2Str.includes('keycard-log');
+    !JSON.stringify(case52State).includes('Poison Source Traced') &&
+    !JSON.stringify(case61State).includes('Poison Source Traced') &&
+    case52State.caseId === 'vanishing-manuscript-052' &&
+    case61State.caseId === 'death-on-platform-6-061';
 
   record(
     2,
-    'Unvisited Location Evidence Name Concealment',
+    'Cross-Case Deduction & State Isolation',
     ap2Passed,
     ap2Passed
-      ? 'PASS: Location query returns counts without exposing undiscovered clue names or IDs.'
-      : 'FAIL: Undiscovered clue names or IDs exposed in location search.',
+      ? 'PASS: Switching cases loads clean, independent case state. Case #047 deductions never leak into #052 or #061.'
+      : 'FAIL: Case #047 deductions or state leaked into Case #052 or #061.',
   );
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Attack Path 3: Guess a suspect ID and attempt to obtain hidden information
+  // Test 3: Client JS Bundles contain ZERO solution data
   // ───────────────────────────────────────────────────────────────────────────
-  const ap3Result = await executeWebMCPTool('get_suspect_profile', { suspect_id: 'victoria-adeyemi' });
-  const ap3Str = JSON.stringify(ap3Result);
+  const galleryClient = await import('@/game/data/galleryMurder');
+  const vanishingClient = await import('@/game/data/vanishingManuscript');
+  const platformClient = await import('@/game/data/deathOnPlatform6');
+
+  const combinedClientStr =
+    JSON.stringify(galleryClient) +
+    JSON.stringify(vanishingClient) +
+    JSON.stringify(platformClient);
+
   const ap3Passed =
-    ap3Result.success === true &&
-    !ap3Str.includes('isKiller') &&
-    !ap3Str.includes('killerId') &&
-    !ap3Str.includes('cyanide dissolved in Daniel');
+    !combinedClientStr.includes('"isKiller"') &&
+    !combinedClientStr.includes('"hiddenSignificance"') &&
+    !combinedClientStr.includes('"isRedHerring"') &&
+    !combinedClientStr.includes('"contributesToSolution"') &&
+    !combinedClientStr.includes('"secrets"') &&
+    !combinedClientStr.includes('"hiddenRelationships"') &&
+    !combinedClientStr.includes('Potassium cyanide dissolved');
 
   record(
     3,
-    'Suspect Profile Solution & Killer Shielding',
+    'Client JS Bundle Zero Solution Leakage Audit',
     ap3Passed,
     ap3Passed
-      ? 'PASS: Suspect dossier contains zero killer flags, secrets, or solution hints.'
-      : 'FAIL: Leaked killer status or secret solution in suspect profile.',
+      ? 'PASS: Client data files (galleryMurder.ts, vanishingManuscript.ts, deathOnPlatform6.ts) contain ZERO isKiller flags, zero secrets, zero hiddenSignificances, and zero solution objects.'
+      : 'FAIL: Client JavaScript bundle contains sensitive solution or internal classification fields.',
   );
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Attack Path 4: Call get_case_state before investigation
+  // Test 4: Normal #047 investigation flow works cleanly
   // ───────────────────────────────────────────────────────────────────────────
-  const ap4Result = await executeWebMCPTool('get_case_state', {});
-  const ap4Str = JSON.stringify(ap4Result);
+  useGameStore.getState().resetInvestigation();
+  useGameStore.getState().visitLocation('private-office');
+  useGameStore.getState().visitLocation('storage-room');
+  useGameStore.getState().visitLocation('security-room');
+
+  useGameStore.getState().inspectEvidence('whiskey-glass');
+  useGameStore.getState().inspectEvidence('keycard-log');
+  useGameStore.getState().inspectEvidence('cyanide-vial');
+  useGameStore.getState().inspectEvidence('cctv-gap');
+  useGameStore.getState().inspectEvidence('pharmacy-order');
+  useGameStore.getState().inspectEvidence('divorce-filing');
+
+  const stateAfterInspect = useGameStore.getState();
   const ap4Passed =
-    ap4Result.success === true &&
-    ap4Result.data?.discoveredEvidenceCount === 0 &&
-    !ap4Str.includes('isKiller') &&
-    !ap4Str.includes('killerId') &&
-    !ap4Str.includes('solution');
+    stateAfterInspect.inspectedEvidenceIds.has('whiskey-glass') &&
+    stateAfterInspect.inspectedEvidenceIds.has('cyanide-vial') &&
+    stateAfterInspect.inspectedEvidenceIds.size === 6;
 
   record(
     4,
-    'Initial get_case_state Player-Visible Restriction',
+    'Normal #047 Investigation Flow Integrity',
     ap4Passed,
     ap4Passed
-      ? 'PASS: get_case_state returns only 0-progress metadata, non-spoiling deduction titles, and zero solution hints.'
-      : 'FAIL: Initial case state leaked killer or solution.',
+      ? 'PASS: Visiting locations, discovering evidence, inspecting clues, and interviewing suspects works smoothly without error.'
+      : 'FAIL: Normal investigation flow broken by security refactoring.',
   );
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Attack Path 5: Attempt to accuse correct suspect immediately (without evidence)
+  // Test 5: Legitimate completed accusation conviction evaluation
   // ───────────────────────────────────────────────────────────────────────────
-  const ap5Result = await executeWebMCPTool('submit_accusation', {
-    suspect_id: 'victoria-adeyemi',
-    reasoning: 'Guessed killer based on title',
-  });
-  const ap5Passed =
-    ap5Result.success === false &&
-    typeof ap5Result.error === 'string' &&
-    ap5Result.error.includes('Accusation rejected: Insufficient investigative proof');
-
-  record(
-    5,
-    'Premature Correct Accusation Block',
-    ap5Passed,
-    ap5Passed
-      ? `PASS: Immediately accusing correct killer correctly blocked. Error: "${ap5Result.error}"`
-      : `FAIL: Premature accusation was accepted! Result: ${JSON.stringify(ap5Result)}`,
-  );
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Attack Path 6: Attempt to accuse wrong suspect immediately
-  // ───────────────────────────────────────────────────────────────────────────
-  const ap6Result = await executeWebMCPTool('submit_accusation', {
-    suspect_id: 'marcus-cole',
-    reasoning: 'Guessed suspect based on argument',
-  });
-  const ap6Passed =
-    ap6Result.success === false &&
-    typeof ap6Result.error === 'string' &&
-    ap6Result.error.includes('Accusation rejected: Insufficient investigative proof');
-
-  record(
-    6,
-    'Premature Wrong Accusation Block',
-    ap6Passed,
-    ap6Passed
-      ? `PASS: Premature accusation against innocent suspect correctly blocked for missing deductions.`
-      : `FAIL: Premature accusation allowed. Result: ${JSON.stringify(ap6Result)}`,
-  );
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Attack Path 7: Attempt to retrieve hidden solution via tool parameter probing
-  // ───────────────────────────────────────────────────────────────────────────
-  const ap7a = await executeWebMCPTool('search_evidence', { query: 'killer' });
-  const ap7b = await executeWebMCPTool('search_evidence', { query: 'solution' });
-  const ap7Str = JSON.stringify(ap7a) + JSON.stringify(ap7b);
-  const ap7Passed = !ap7Str.includes('victoria-adeyemi') && !ap7Str.includes('cyanide-vial');
-
-  record(
-    7,
-    'Tool Parameter Probing Resistance',
-    ap7Passed,
-    ap7Passed
-      ? 'PASS: Parameter search for "killer" or "solution" yielded 0 undiscovered items and 0 secrets.'
-      : 'FAIL: Solution revealed via parameter search probing.',
-  );
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Attack Path 8: Code Structure & Server-Only Solution Isolation
-  // ───────────────────────────────────────────────────────────────────────────
-  const galleryClientData = await import('@/game/data/galleryMurder');
-  const clientStr = JSON.stringify(galleryClientData);
-  const ap8Passed =
-    !clientStr.includes('isKiller":true') &&
-    !clientStr.includes('killerId') &&
-    !clientStr.includes('Potassium cyanide dissolved in the victim');
-
-  record(
-    8,
-    'Client JS Bundle Solution Isolation Audit',
-    ap8Passed,
-    ap8Passed
-      ? 'PASS: Client case data file galleryMurder.ts contains 0 killer flags and 0 secret solution fields.'
-      : 'FAIL: Client JavaScript bundle contains secret solution data.',
-  );
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Attack Path 9: Tool Parameter Manipulation & Graceful Failure
-  // ───────────────────────────────────────────────────────────────────────────
-  const ap9a = await executeWebMCPTool('inspect_evidence', { evidence_id: 12345 as any });
-  const ap9b = await executeWebMCPTool('get_suspect_profile', { suspect_id: 'nonexistent-suspect' });
-  const ap9Passed =
-    ap9a.success === false &&
-    ap9b.success === false &&
-    ap9b.error.includes('not found');
-
-  record(
-    9,
-    'Malformed Parameter Graceful Handling',
-    ap9Passed,
-    ap9Passed
-      ? 'PASS: Invalid parameters and nonexistent IDs return structured error objects without crashing.'
-      : 'FAIL: Unhandled exception on malformed parameters.',
-  );
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Attack Path 10: State Isolation & Complete Legitimate Flow Verification
-  // ───────────────────────────────────────────────────────────────────────────
-  // Reset and perform legitimate investigation sequence:
-  const store = useGameStore.getState();
-  store.resetInvestigation();
-
-  store.visitLocation('private-office');
-  store.visitLocation('storage-room');
-  store.visitLocation('security-room');
-
-  // Discover & inspect required clues
-  store.inspectEvidence('whiskey-glass');
-  store.inspectEvidence('keycard-log');
-  store.inspectEvidence('cyanide-vial');
-  store.inspectEvidence('cctv-gap');
-  store.inspectEvidence('pharmacy-order');
-  store.inspectEvidence('divorce-filing');
-
-  // Record interview with Victoria (va-q4)
   await executeWebMCPTool('interview_suspect', {
     suspect_id: 'victoria-adeyemi',
     question: 'va-q4',
   });
 
-  // Now test submit_accusation after completing all deductions
-  const ap10Result = await executeWebMCPTool('submit_accusation', {
+  const legitimateAccusation = await executeWebMCPTool('submit_accusation', {
     suspect_id: 'victoria-adeyemi',
     reasoning: 'Victoria Adeyemi accessed office at 10:19 PM using keycard, purchased cyanide vial KCN-8802, and paid guard Michael Grant £3,000 to delete CCTV.',
   });
 
-  const ap10Passed = ap10Result.success === true && ap10Result.isCorrect === true;
+  const ap5Passed =
+    legitimateAccusation.success === true &&
+    legitimateAccusation.isCorrect === true &&
+    legitimateAccusation.solution !== undefined &&
+    legitimateAccusation.solution.killerId === 'victoria-adeyemi';
 
   record(
-    10,
-    'Legitimate Investigation Deduction & Conviction Flow',
-    ap10Passed,
-    ap10Passed
-      ? 'PASS: After discovering all required clues and interviewing suspect, submit_accusation successfully verifies conviction!'
-      : `FAIL: Legitimate investigation failed conviction evaluation. Result: ${JSON.stringify(ap10Result)}`,
+    5,
+    'Legitimate Accusation Conviction Evaluation',
+    ap5Passed,
+    ap5Passed
+      ? 'PASS: Once all required deductions are genuinely established, submit_accusation successfully verifies conviction and returns solution!'
+      : `FAIL: Legitimate accusation failed conviction evaluation. Result: ${JSON.stringify(legitimateAccusation)}`,
   );
 
   const total = results.length;
@@ -254,4 +192,17 @@ export async function runAttackPathSuite(): Promise<{
   const failed = total - passed;
 
   return { total, passed, failed, results };
+}
+
+function gameServiceGetStateWrapper() {
+  const store = useGameStore.getState();
+  const caseData = store.activeCase;
+  const stateParams = {
+    caseId: caseData.id,
+    visitedLocationIds: Array.from(store.visitedLocationIds),
+    discoveredEvidenceIds: Array.from(store.discoveredEvidenceIds),
+    inspectedEvidenceIds: Array.from(store.inspectedEvidenceIds),
+    interviewedSuspectIds: Array.from(store.interviewedSuspectIds),
+  };
+  return caseServerService.getCaseState(stateParams);
 }

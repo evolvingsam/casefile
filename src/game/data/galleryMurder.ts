@@ -3,7 +3,7 @@ import type { Case } from '@/game/types';
 // ─────────────────────────────────────────────────────────────────────────────
 // Case #047 — The Gallery Murder (PUBLIC CLIENT MODEL)
 //
-// NOTE FOR SECURITY & INTEGRITY (Problem 4):
+// NOTE FOR SECURITY & INTEGRITY (Problem 3 & 4):
 // Secret solution data, killer identity, hidden significances, secrets, and
 // deduction requirements are stored ONLY on the server in src/server/cases/
 // and are NEVER bundled into client JavaScript.
@@ -99,131 +99,159 @@ export const THE_GALLERY_MURDER: Case = {
         },
         {
           id: 'so-q3',
-          question: 'How was your relationship with Daniel recently?',
+          question: 'What was your relationship with Daniel?',
           answer:
-            '"Professional. We had a past, years ago, but we moved beyond it. I respected him."',
+            '"We were close. Professional partners, mostly, but yes — there was history. He promised things were going to change soon."',
+        },
+        {
+          id: 'so-q4',
+          question: 'Do you know Victoria Adeyemi well?',
+          answer:
+            '"Well enough. She rarely came to showings. When she did, she barely spoke to anyone."',
         },
       ],
-      relatedEvidenceIds: ['bank-transfer'],
+      relatedEvidenceIds: ['divorce-filing'],
     },
 
     {
       id: 'james-bello',
       name: 'James Bello',
       title: 'Business Partner',
-      occupation: 'Co-Owner & Commercial Director, Adeyemi & Bello Fine Art',
-      relationship: 'Business partner',
+      occupation: 'Co-Founder & Director, Adeyemi & Bello Fine Art',
+      relationship: 'Co-owner & co-founder',
       description:
-        'Flamboyant, well-connected, and under mounting financial pressure. James manages the gallery\'s acquisitions and sales. Rumours have circulated for months that he and Daniel were in a bitter dispute over gallery finances.',
+        'Flamboyant and image-conscious. James handles the commercial buying side of the gallery while Daniel handled private client sales. Tensions had risen between them over gallery finances.',
       motive:
-        'Audit records reveal James transferred £160,000 from gallery accounts to an off-shore entity over six months. Daniel was scheduled to meet the gallery accountant the following morning.',
+        'James had secretly transferred gallery funds to cover personal trading losses. An upcoming forensic audit initiated by Daniel would have exposed the missing £160,000.',
       alibi:
-        '"I was in the main gallery all evening talking to collectors. Dozens of people saw me. I never went back to the office suite after 8:00 PM."',
+        '"I was entertaining our top collectors in the main exhibition room from 8:30 PM until 11:30 PM. Ask any of them. I never went near the back corridor."',
       initialStatement:
-        '"Daniel and I had our disagreements — what partners don\'t? But he was the soul of this gallery. I am shattered by this."',
+        '"Daniel and I built this place from nothing. I loved the man like a brother. I\'m utterly shattered by this."',
       interviewResponses: [
         {
           id: 'jb-q1',
-          question: 'Were gallery finances in trouble?',
+          question: 'Were there financial disagreements between you and Daniel?',
           answer:
-            '"Cash flow is always tight in fine art. We had major acquisitions pending. Everything I did was for the gallery\'s survival."',
+            '"Disagreements? We ran a multi-million-pound business. Of course we argued. About acquisitions, about pricing. Normal business stuff."',
         },
         {
           id: 'jb-q2',
-          question: 'Daniel was meeting the auditor tomorrow, wasn\'t he?',
+          question: 'What about the forensic audit Daniel ordered?',
           answer:
-            '"A routine annual review. Standard practice. Nothing more."',
+            '"Standard corporate governance. Nothing to hide. Every penny is accounted for."',
         },
         {
           id: 'jb-q3',
           question: 'Where were you between 10:00 PM and 11:00 PM?',
           answer:
-            '"In the main gallery presenting the Impressionist collection to Lord and Lady Sterling. Check the guestbook."',
+            '"In the main hall, talking to Lady Vance and her party. We were looking at the Turner watercolors. I didn\'t leave that room."',
+        },
+        {
+          id: 'jb-q4',
+          question: 'Did you see Michael Grant during the showing?',
+          answer:
+            '"Michael was doing his rounds. Saw him near the main entrance around ten. Seemed nervous, now that I think about it."',
         },
       ],
-      relatedEvidenceIds: ['bank-transfer'],
+      relatedEvidenceIds: [],
     },
 
     {
       id: 'victoria-adeyemi',
       name: 'Victoria Adeyemi',
       title: 'Wife',
-      occupation: 'Consultant Physician, St. Jude\'s Private Hospital',
-      relationship: 'Wife (14 years)',
+      occupation: 'Consultant Cardiologist, St. Jude\'s Private Hospital',
+      relationship: 'Estranged spouse',
       description:
-        'Elegant, guarded, and formidable. Victoria married Daniel fourteen years ago. Their marriage appeared harmonious publicly, but close friends report they had been living virtually separate lives for two years.',
+        'Calculated, controlled, and formidable. Victoria married Daniel twelve years ago. Though living in separate wings of their townhouse, they maintained a public image of solidarity.',
       motive:
-        'Daniel\'s estate is valued at £4.2 million. Victoria stands to inherit the bulk of his estate — unless a pending divorce petition is executed.',
+        'Victoria discovered Daniel was filing for divorce and revising his will. Under the draft terms, she would receive nothing from the gallery business or his personal estate.',
       alibi:
-        '"I arrived at the gallery late, around 10:45 PM, to drive Daniel home. I waited in the courtyard. I never went inside his office suite."',
+        '"I was at home until 10:30 PM, then drove to the gallery to pick up Daniel. I arrived at 10:45 PM and waited in the courtyard car park until security called me inside."',
       initialStatement:
-        '"I came to pick Daniel up as we agreed. When he didn\'t come out by 11:30 PM, I asked Michael to check on him. Then Michael screamed."',
+        '"I arrived at 10:45 PM to collect my husband. I didn\'t enter the building until Michael came out looking pale at 11:47 PM. I never saw Daniel alive that night."',
       interviewResponses: [
         {
           id: 'va-q1',
-          question: 'Was your marriage in trouble?',
+          question: 'Why did you come to collect Daniel if you were estranged?',
           answer:
-            '"We had our private difficulties, like any couple of fourteen years. But we maintained mutual respect and shared assets."',
+            '"We had an agreement. We maintained appearances for the gallery\'s sake. I always collected him after major showings."',
         },
         {
           id: 'va-q2',
-          question: 'Did you enter the office building before 11:45 PM?',
+          question: 'Did you know Daniel was planning to file for divorce?',
           answer:
-            '"No. I stayed in the courtyard. The night air was pleasant. I had no reason to interrupt his work."',
+            '"Daniel talked about many things when stressed. Talk is cheap. We hadn\'t served any papers."',
         },
         {
           id: 'va-q3',
-          question: 'What do you know about Daniel\'s whiskey habits?',
+          question: 'Do you have access to pharmaceutical compounds in your work?',
           answer:
-            '"Daniel drank Macallan 18 every evening in his office. It was his routine. Everyone who knew him knew that."',
+            '"I am a cardiologist. I prescribe medication according to strict hospital protocols. What are you insinuating?"',
         },
         {
           id: 'va-q4',
-          question: 'The door log shows your keycard was used at 10:19 PM. How do you explain that?',
+          question: 'Your keycard registered access to the office at 10:19 PM. How?',
           answer:
-            '"My keycard? That\'s impossible. I must have mislaid it earlier in the week. Someone else must have used it."',
+            '"...That is impossible. My keycard was in my handbag all evening. Someone must have stolen it or the reader glitched."',
           requiresEvidenceIds: ['keycard-log'],
         },
       ],
-      relatedEvidenceIds: ['keycard-log', 'cyanide-vial', 'divorce-filing', 'pharmacy-order'],
+      relatedEvidenceIds: [
+        'whiskey-glass',
+        'keycard-log',
+        'cyanide-vial',
+        'cctv-gap',
+        'pharmacy-order',
+        'divorce-filing',
+        'bank-transfer',
+      ],
     },
 
     {
       id: 'michael-grant',
       name: 'Michael Grant',
-      title: 'Security Officer',
-      occupation: 'Head of Security, Apex Security Services',
+      title: 'Security Guard',
+      occupation: 'Night Security Supervisor, Apex Security Services',
       relationship: 'Employee',
       description:
-        'Ex-military, quiet, and watchful. Michael has managed security at the gallery for three years. He controls access to the private office suite, keycard logs, and CCTV monitoring room.',
+        'Former police officer turned private security guard. Michael had worked night shifts at the gallery for three years. He discovered Daniel\'s body at 11:47 PM.',
       motive:
-        'Michael has severe personal debts from gambling. Bank records show an unexplained £3,000 cash deposit into his personal account earlier that week.',
+        'Deeply in debt from gambling. Michael was vulnerable to financial pressure.',
       alibi:
-        '"I was on duty in the security monitoring room all night, conducting hourly rounds. I found Daniel at 11:47 PM during my final check."',
+        '"I was monitoring the CCTV console in the security room and making 30-minute patrols of the perimeter. Found Mr. Adeyemi at 11:47 PM during my final check."',
       initialStatement:
-        '"I did my rounds every hour on the dot. Office door was locked at 10:00 PM check. At 11:45 PM check, keycard opened it and I found Mr. Adeyemi slumped over."',
+        '"I did my rounds every half hour. At 11:45 PM I unlocked the private corridor for my final walk-through. I opened Mr. Adeyemi\'s office door and saw him over his desk. I checked for a pulse immediately. Nothing."',
       interviewResponses: [
         {
           id: 'mg-q1',
-          question: 'Who had access to the private office keycard?',
+          question: 'Why was there an 8-minute gap in Camera 3 recording at 10:15 PM?',
           answer:
-            '"Only Daniel, Mr. Bello, Mrs. Adeyemi, and my master card. Nobody else."',
+            '"The DVR system has been glitching for weeks. Management knows about it. Power supply unit overheating, cuts out randomly."',
+          requiresEvidenceIds: ['cctv-gap'],
         },
         {
           id: 'mg-q2',
-          question: 'Did the CCTV capture anyone entering between 10:00 and 11:00 PM?',
+          question: 'Did you see Victoria Adeyemi before 10:45 PM?',
           answer:
-            '"Camera 3 covers that corridor. I\'ve submitted the footage to the police. There was a glitch around 10:15 PM — power flicker, brief outage."',
+            '"I... I don\'t recall seeing her car until around quarter to eleven. It was dark in the courtyard."',
         },
         {
           id: 'mg-q3',
-          question: 'Where did the £3,000 cash deposit in your bank account come from?',
+          question: 'How do you explain the £3,000 cash deposit into your bank account today?',
           answer:
-            '"That\'s a personal financial matter. I sold a watch. It has nothing to do with Mr. Adeyemi\'s death."',
+            '"That\'s... personal savings. I sold a watch. Private sale. Nothing to do with the gallery."',
           requiresEvidenceIds: ['bank-transfer'],
         },
+        {
+          id: 'mg-q4',
+          question: 'Did anyone ask you to alter the CCTV footage?',
+          answer:
+            '"I want a solicitor before I answer any more questions about the security system."',
+          requiresEvidenceIds: ['cctv-gap', 'bank-transfer'],
+        },
       ],
-      relatedEvidenceIds: ['cctv-gap', 'bank-transfer'],
+      relatedEvidenceIds: ['cctv-gap', 'bank-transfer', 'keycard-log'],
     },
   ],
 
@@ -232,57 +260,57 @@ export const THE_GALLERY_MURDER: Case = {
   locations: [
     {
       id: 'main-gallery',
-      name: 'Main Gallery',
+      name: 'Main Gallery Hall',
       description:
-        'The primary exhibition space, featuring high ceilings, hardwood floors, and track lighting. The walls display contemporary paintings. Guests gathered here throughout the evening showing.',
+        'The spacious primary exhibition space featuring high ceilings, hardwood floors, and ambient track lighting. Dozens of guests circulated here during the showing.',
       investigatorNote:
-        'High foot traffic area. Floor is clean except near the east wall exhibit where Marcus Cole and Daniel Adeyemi argued at 8:45 PM.',
-      icon: 'gallery',
+        'CCTV Camera 1 covers the main floor. Fingerprints and discarded items recovered near the waste bin.',
+      icon: 'landmark',
       evidenceIds: ['cctv-argument', 'torn-letter'],
     },
     {
       id: 'private-office',
-      name: 'Private Office',
+      name: 'Daniel\'s Private Office',
       description:
-        'Daniel\'s personal office located at the end of a restricted corridor behind the main gallery. Features a heavy mahogany desk, leather armchair, private safe, and double-locked door.',
+        'A mahogany-paneled room behind a heavy oak door secured by an electronic keycard lock. Features a large executive desk, floor-to-ceiling bookshelves, and a private liquor cabinet.',
       investigatorNote:
-        'Crime scene. Daniel was discovered slumped at his desk. A single crystal whiskey glass sat beside his elbow. No signs of struggle.',
-      icon: 'office',
+        'Crime scene. Body was found here. Crystal whiskey tumbler on desk. Door secured by keycard audit trail.',
+      icon: 'door-closed',
       evidenceIds: ['whiskey-glass', 'keycard-log', 'divorce-filing'],
     },
     {
-      id: 'storage-room',
-      name: 'Storage Room',
+      id: 'security-room',
+      name: 'Security Control Room',
       description:
-        'A narrow utility and archival storage room located off the service corridor behind the office suite. Houses art crates, cleaning supplies, and staff lockers.',
+        'A cramped room off the service entrance containing four CCTV monitors, an encrypted DVR rack, and security guard Michael Grant\'s desk.',
       investigatorNote:
-        'Slight smell of industrial solvent. Cleaning bins and supply shelves warrant thorough forensic sweep.',
-      icon: 'storage',
+        'DVR logs reveal Camera 3 gap. Guard\'s personal desk drawer contained bank receipt.',
+      icon: 'shield-alert',
+      evidenceIds: ['cctv-gap', 'bank-transfer'],
+    },
+    {
+      id: 'storage-room',
+      name: 'Archive & Cleaning Storage',
+      description:
+        'A windowless utility corridor behind the main gallery used for storing spare frames, cleaning chemical supplies, and maintenance equipment.',
+      investigatorNote:
+        'Trash bin contains empty chemical container. Invoices stored in file cabinet.',
+      icon: 'box',
       evidenceIds: ['cyanide-vial', 'pharmacy-order'],
     },
     {
       id: 'courtyard',
-      name: 'Courtyard',
+      name: 'Courtyard & Car Park',
       description:
-        'A cobble-paved open courtyard at the rear of the gallery, used for private parking and guest fresh air during events. Surrounded by high brick walls.',
+        'A cobble-paved private courtyard behind security gates. Used for guest parking and staff access.',
       investigatorNote:
-        'Victoria Adeyemi claims she waited here in her vehicle from 10:45 PM until the body was discovered.',
-      icon: 'courtyard',
+        'Victoria\'s Mercedes logged entering gates. CCTV covers outer gate only.',
+      icon: 'car',
       evidenceIds: [],
-    },
-    {
-      id: 'security-room',
-      name: 'Security Room',
-      description:
-        'Small monitoring room near the rear staff entrance containing the CCTV recorder rack, electronic keycard access controller, and guard desk.',
-      investigatorNote:
-        'CCTV monitors display live feeds. Access log printer and DVR recording units located on main console.',
-      icon: 'security',
-      evidenceIds: ['cctv-gap', 'bank-transfer'],
     },
   ],
 
-  // ─── Evidence (Public Metadata — Zero Secret Significances) ───────────────
+  // ─── Discovered & Discoverable Evidence (Public Descriptions Only) ──────────
 
   evidence: [
     {
@@ -294,8 +322,6 @@ export const THE_GALLERY_MURDER: Case = {
       tags: ['physical', 'forensic', 'crime scene'],
       relatedSuspectIds: ['victoria-adeyemi'],
       relatedEvidenceIds: ['cyanide-vial'],
-      isRedHerring: false,
-      contributesToSolution: true,
     },
     {
       id: 'keycard-log',
@@ -306,8 +332,6 @@ export const THE_GALLERY_MURDER: Case = {
       tags: ['document', 'digital', 'access control'],
       relatedSuspectIds: ['victoria-adeyemi', 'michael-grant'],
       relatedEvidenceIds: ['cctv-gap'],
-      isRedHerring: false,
-      contributesToSolution: true,
     },
     {
       id: 'cyanide-vial',
@@ -318,8 +342,6 @@ export const THE_GALLERY_MURDER: Case = {
       tags: ['physical', 'chemical', 'hidden'],
       relatedSuspectIds: ['victoria-adeyemi'],
       relatedEvidenceIds: ['whiskey-glass', 'pharmacy-order'],
-      isRedHerring: false,
-      contributesToSolution: true,
     },
     {
       id: 'cctv-gap',
@@ -330,8 +352,6 @@ export const THE_GALLERY_MURDER: Case = {
       tags: ['digital', 'security', 'timeline'],
       relatedSuspectIds: ['michael-grant', 'victoria-adeyemi'],
       relatedEvidenceIds: ['keycard-log', 'bank-transfer'],
-      isRedHerring: false,
-      contributesToSolution: true,
     },
     {
       id: 'bank-transfer',
@@ -342,8 +362,6 @@ export const THE_GALLERY_MURDER: Case = {
       tags: ['document', 'financial', 'motive'],
       relatedSuspectIds: ['michael-grant', 'victoria-adeyemi'],
       relatedEvidenceIds: ['cctv-gap'],
-      isRedHerring: false,
-      contributesToSolution: true,
     },
     {
       id: 'pharmacy-order',
@@ -354,8 +372,6 @@ export const THE_GALLERY_MURDER: Case = {
       tags: ['document', 'chemical', 'tracing'],
       relatedSuspectIds: ['victoria-adeyemi'],
       relatedEvidenceIds: ['cyanide-vial'],
-      isRedHerring: false,
-      contributesToSolution: true,
     },
     {
       id: 'divorce-filing',
@@ -366,8 +382,6 @@ export const THE_GALLERY_MURDER: Case = {
       tags: ['document', 'legal', 'motive'],
       relatedSuspectIds: ['victoria-adeyemi', 'sarah-okafor'],
       relatedEvidenceIds: [],
-      isRedHerring: false,
-      contributesToSolution: true,
     },
     {
       id: 'cctv-argument',
@@ -378,8 +392,6 @@ export const THE_GALLERY_MURDER: Case = {
       tags: ['digital', 'cctv', 'timeline'],
       relatedSuspectIds: ['marcus-cole'],
       relatedEvidenceIds: ['torn-letter'],
-      isRedHerring: true,
-      contributesToSolution: false,
     },
     {
       id: 'torn-letter',
@@ -390,8 +402,6 @@ export const THE_GALLERY_MURDER: Case = {
       tags: ['physical', 'document'],
       relatedSuspectIds: ['marcus-cole'],
       relatedEvidenceIds: ['cctv-argument'],
-      isRedHerring: true,
-      contributesToSolution: false,
     },
   ],
 

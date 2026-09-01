@@ -4,25 +4,27 @@
  * SERVER-ONLY Game Logic & Secret Security Engine.
  *
  * Enforces:
- * 1. Evidence Discovery Requirement (inspect_evidence ONLY works for discovered evidence).
- * 2. Zero Solution Leakage (Secret solution, killerId, and hidden significances remain on server).
- * 3. Case-Specific Deduction Requirements before allowing accusations.
- * 4. Analytical, non-spoiling investigative language for AI agent responses.
+ * 1. Problem 1 Fix: Premature accusation returns ONLY uninformative generic response:
+ *    "You do not have enough established evidence to support this accusation."
+ *    (Zero deduction names, zero hints, zero required evidence lists, identical structure for correct & wrong suspect).
+ * 2. Problem 2 Fix: Case-Specific Deduction Requirements. Each case has its own secret dataset & deductions.
+ *    No cross-case leakage or hardcoding.
+ * 3. Problem 3 Fix: Server-side secret solution isolation.
  */
 
 import { GALLERY_MURDER_SECRET, SecretCaseData } from '../cases/galleryMurderSecret';
-import type {
-  DeductionRequirement,
-  EvidenceId,
-  SuspectId,
-  LocationId,
-  InvestigationProgress,
-} from '@/game/types';
+import { VANISHING_MANUSCRIPT_SECRET } from '../cases/vanishingManuscriptSecret';
+import { DEATH_ON_PLATFORM_6_SECRET } from '../cases/deathOnPlatform6Secret';
+import type { DeductionRequirement } from '@/game/types';
 
 // Registry of secret case datasets (Server-Only)
 const SECRET_CASES_MAP: Record<string, SecretCaseData> = {
   [GALLERY_MURDER_SECRET.id]: GALLERY_MURDER_SECRET,
   'gallery-murder-047': GALLERY_MURDER_SECRET,
+  [VANISHING_MANUSCRIPT_SECRET.id]: VANISHING_MANUSCRIPT_SECRET,
+  'vanishing-manuscript-052': VANISHING_MANUSCRIPT_SECRET,
+  [DEATH_ON_PLATFORM_6_SECRET.id]: DEATH_ON_PLATFORM_6_SECRET,
+  'death-on-platform-6-061': DEATH_ON_PLATFORM_6_SECRET,
 };
 
 export interface ActiveStateParams {
@@ -36,15 +38,19 @@ export interface ActiveStateParams {
 
 export const caseServerService = {
   /**
-   * Get server-side secret case data safely.
+   * Get server-side secret case data safely by caseId.
    */
   getSecretCase(caseId: string): SecretCaseData {
-    const caseData = SECRET_CASES_MAP[caseId] || GALLERY_MURDER_SECRET;
+    const caseData = SECRET_CASES_MAP[caseId];
+    if (!caseData) {
+      // Fallback for unknown case ID
+      return GALLERY_MURDER_SECRET;
+    }
     return caseData;
   },
 
   /**
-   * Evaluate deduction graph for a case against current state.
+   * Evaluate deduction graph for the active case against current state.
    */
   evaluateDeductions(state: ActiveStateParams): {
     completedDeductions: DeductionRequirement[];
@@ -54,7 +60,6 @@ export const caseServerService = {
     const secretCase = this.getSecretCase(state.caseId);
     const discoveredSet = new Set(state.discoveredEvidenceIds);
     const inspectedSet = new Set(state.inspectedEvidenceIds);
-    const visitedSet = new Set(state.visitedLocationIds);
 
     const interviewedQuestionsSet = new Set(
       (state.interviews || []).map((i) => `${i.suspectId}:${i.questionId}`),
@@ -95,13 +100,12 @@ export const caseServerService = {
   },
 
   /**
-   * PROBLEM 1 & 2: Safe inspect_evidence enforcement.
+   * Safe inspect_evidence enforcement.
    * MUST ONLY work for evidence already in discoveredEvidenceIds!
    */
   inspectEvidence(evidenceId: string, state: ActiveStateParams) {
     const discoveredSet = new Set(state.discoveredEvidenceIds);
 
-    // PROBLEM 1: Strict Discovery Enforcement
     if (!discoveredSet.has(evidenceId)) {
       return {
         success: false,
@@ -125,7 +129,8 @@ export const caseServerService = {
   },
 
   /**
-   * PROBLEM 3 & 9: Accusation Validation with Deduction Requirements.
+   * PROBLEM 1 FIX: Premature accusation returns ONLY uninformative generic error.
+   * PROBLEM 2 FIX: Case-specific deduction validation.
    */
   submitAccusation(
     accusedSuspectId: string,
@@ -134,16 +139,15 @@ export const caseServerService = {
   ) {
     const secretCase = this.getSecretCase(state.caseId);
 
-    // Check deduction graph requirement
+    // Evaluate deduction graph for active case
     const deductionStatus = this.evaluateDeductions(state);
 
     if (!deductionStatus.allFulfilled) {
-      const missingTitles = deductionStatus.pendingDeductions.map((d) => d.title).join(', ');
+      // PROBLEM 1 REQUIREMENT: Generic response, 0 deduction names, 0 required evidence lists, identical for correct/wrong suspect!
       return {
         success: false,
         isCorrect: false,
-        error: `Accusation rejected: Insufficient investigative proof. You must establish the following deductions first: [${missingTitles}].`,
-        missingDeductions: deductionStatus.pendingDeductions.map((d) => d.title),
+        error: 'You do not have enough established evidence to support this accusation.',
       };
     }
 
@@ -167,7 +171,7 @@ export const caseServerService = {
   },
 
   /**
-   * PROBLEM 5: get_case_state limited to player-visible state.
+   * get_case_state limited to player-visible state for active case.
    */
   getCaseState(state: ActiveStateParams) {
     const deductionStatus = this.evaluateDeductions(state);

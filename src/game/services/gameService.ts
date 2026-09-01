@@ -4,8 +4,8 @@
  * Unified Game Service Layer (Client & Server Proxy).
  *
  * Both React UI components AND WebMCP tools invoke functions here.
- * Enforces strict evidence discovery requirements, deduction graph checks,
- * and zero solution leakage.
+ * Enforces strict evidence discovery requirements, case-specific deduction graphs,
+ * uninformative premature accusation responses, and zero solution leakage.
  */
 
 import { useGameStore } from '@/game/state/store';
@@ -27,6 +27,7 @@ import {
   getQuestionAvailability,
   buildInterviewEntry,
 } from '@/game/logic/interviews';
+import { caseServerService } from '@/server/services/caseServerService';
 
 export interface PublicCaseState {
   caseId: string;
@@ -46,10 +47,28 @@ export interface PublicCaseState {
   totalTimelineEventsCount: number;
   progress: InvestigationProgress;
   completedDeductions: string[];
-  pendingDeductions: string[];
+  pendingDeductionsCount: number;
+  allDeductionsFulfilled: boolean;
 }
 
 export const gameService = {
+  /**
+   * Helper to build active state params for server validation.
+   */
+  getActiveStateParams() {
+    const store = useGameStore.getState();
+    const caseData = store.activeCase;
+
+    return {
+      caseId: caseData.id,
+      visitedLocationIds: Array.from(store.visitedLocationIds),
+      discoveredEvidenceIds: Array.from(store.discoveredEvidenceIds),
+      inspectedEvidenceIds: Array.from(store.inspectedEvidenceIds),
+      interviewedSuspectIds: Array.from(store.interviewedSuspectIds),
+      interviews: store.interviews.map((i) => ({ suspectId: i.suspectId, questionId: i.questionId })),
+    };
+  },
+
   /**
    * 1. get_case_state
    * PROBLEM 5: Returns current investigation state safe for agents (no hidden solution).
@@ -67,34 +86,7 @@ export const gameService = {
     );
 
     const discovered = getDiscoveredEvidence(caseData, store.discoveredEvidenceIds);
-
-    // Compute basic deduction titles without spoiling solution
-    const completedDeductions: string[] = [];
-    const pendingDeductions: string[] = [];
-
-    if (store.inspectedEvidenceIds.has('whiskey-glass') && store.inspectedEvidenceIds.has('cyanide-vial')) {
-      completedDeductions.push('Poison Source Traced');
-    } else {
-      pendingDeductions.push('Poison Source Traced');
-    }
-
-    if (store.visitedLocationIds.has('private-office') && store.inspectedEvidenceIds.has('keycard-log')) {
-      completedDeductions.push('Office Access & Keycard Verification');
-    } else {
-      pendingDeductions.push('Office Access & Keycard Verification');
-    }
-
-    if (store.inspectedEvidenceIds.has('divorce-filing')) {
-      completedDeductions.push('Divorce & Will Revision Motive Established');
-    } else {
-      pendingDeductions.push('Divorce & Will Revision Motive Established');
-    }
-
-    if (store.inspectedEvidenceIds.has('cctv-gap') && store.interviewedSuspectIds.has('victoria-adeyemi')) {
-      completedDeductions.push('Alibi Contradiction & Security Bribe Uncovered');
-    } else {
-      pendingDeductions.push('Alibi Contradiction & Security Bribe Uncovered');
-    }
+    const serverState = caseServerService.getCaseState(this.getActiveStateParams());
 
     return {
       caseId: caseData.id,
@@ -121,8 +113,9 @@ export const gameService = {
       reconstructedEventsCount: progress.timelineEventsVisible,
       totalTimelineEventsCount: caseData.timeline.length,
       progress,
-      completedDeductions,
-      pendingDeductions,
+      completedDeductions: serverState.completedDeductionTitles,
+      pendingDeductionsCount: serverState.pendingDeductionTitles?.length ?? 0,
+      allDeductionsFulfilled: serverState.allDeductionsFulfilled,
     };
   },
 
@@ -208,6 +201,10 @@ export const gameService = {
     // Update shared store
     store.inspectEvidence(evidenceId);
 
+    // Fetch server detailed findings safely
+    const serverResult = caseServerService.inspectEvidence(evidenceId, this.getActiveStateParams());
+    const detailedFindings = serverResult.success ? serverResult.data?.detailedFindings : evidence.detailedDescription;
+
     const relatedEvidence = getRelatedEvidence(caseData, evidenceId, store.discoveredEvidenceIds);
     const relatedSuspects = getEvidenceSuspects(caseData, evidenceId);
 
@@ -216,9 +213,10 @@ export const gameService = {
       id: evidence.id,
       name: evidence.name,
       description: evidence.description,
-      detailedDescription: evidence.detailedDescription,
+      detailedDescription: detailedFindings || evidence.detailedDescription,
       location: evidence.location,
       tags: evidence.tags,
+      relatedSuspectIds: relatedSuspects.map((s) => s.id),
       relatedSuspects: relatedSuspects.map((s) => ({ id: s.id, name: s.name, title: s.title })),
       relatedDiscoveredEvidence: relatedEvidence.map((re) => ({ id: re.id, name: re.name })),
       investigativeObservation: 'This item has been recorded in your forensic inventory for cross-referencing.',
@@ -227,7 +225,6 @@ export const gameService = {
 
   /**
    * 4. search_locations
-   * PROBLEM 2: Returns location status without revealing undiscovered clue details.
    */
   searchLocations(query: string) {
     const store = useGameStore.getState();
@@ -263,7 +260,6 @@ export const gameService = {
 
   /**
    * 5. get_suspects
-   * PROBLEM 2: Returns suspect list with no hidden killer leakage.
    */
   getSuspects() {
     const store = useGameStore.getState();
@@ -295,7 +291,6 @@ export const gameService = {
 
   /**
    * 6. get_suspect_profile
-   * PROBLEM 2: Returns public dossier and unlocked questions.
    */
   getSuspectProfile(suspectId: SuspectId) {
     const store = useGameStore.getState();
@@ -352,7 +347,6 @@ export const gameService = {
 
   /**
    * 7. interview_suspect
-   * PROBLEM 2 & 8: Interrogates suspect using analytical, non-spoiling investigative phrasing.
    */
   interviewSuspect(suspectId: SuspectId, questionInput: string) {
     const store = useGameStore.getState();
@@ -415,7 +409,6 @@ export const gameService = {
 
   /**
    * 8. build_timeline
-   * PROBLEM 8: Reconstructs visible timeline with investigative phrasing.
    */
   buildTimeline() {
     const store = useGameStore.getState();
@@ -465,7 +458,8 @@ export const gameService = {
 
   /**
    * 9. submit_accusation
-   * PROBLEM 3 & 9: Requires deduction requirements before allowing accusation!
+   * PROBLEM 1 & PROBLEM 2 FIX: Delegates to caseServerService for active case deduction checking.
+   * Premature accusations return ONLY generic error: "You do not have enough established evidence to support this accusation."
    */
   submitAccusation(
     suspectId: SuspectId,
@@ -483,39 +477,28 @@ export const gameService = {
       };
     }
 
-    // Check Case Deduction Graph Requirements (PROBLEM 3 & 9)
-    const hasPoisonSource = store.inspectedEvidenceIds.has('cyanide-vial') || store.inspectedEvidenceIds.has('pharmacy-order');
-    const hasKeycardAccess = store.inspectedEvidenceIds.has('keycard-log');
-    const hasDivorceMotive = store.inspectedEvidenceIds.has('divorce-filing');
-    const hasContradiction = store.inspectedEvidenceIds.has('cctv-gap') && store.interviewedSuspectIds.has('victoria-adeyemi');
+    const stateParams = this.getActiveStateParams();
+    const serverResult = caseServerService.submitAccusation(suspectId, reasoning, stateParams);
 
-    const missingDeductions: string[] = [];
-    if (!hasPoisonSource) missingDeductions.push('Poison Source Traced');
-    if (!hasKeycardAccess) missingDeductions.push('Office Access & Keycard Verification');
-    if (!hasDivorceMotive) missingDeductions.push('Divorce & Will Revision Motive Established');
-    if (!hasContradiction) missingDeductions.push('Alibi Contradiction & Security Bribe Uncovered');
-
-    if (missingDeductions.length > 0) {
+    if (!serverResult.success) {
+      // PROBLEM 1 FIX: Generic error, zero missing deduction titles or hints!
       return {
         success: false,
         isCorrect: false,
-        error: `Accusation rejected: Insufficient investigative proof. You must establish the following deductions first: [${missingDeductions.join(', ')}].`,
-        missingDeductions,
+        error: serverResult.error,
       };
     }
 
     // Record accusation in store
     store.makeAccusation(suspectId, '', '', '', reasoning, supportingEvidenceIds);
 
-    // Evaluate against killer (Victoria Adeyemi)
-    const isCorrect = suspectId === 'victoria-adeyemi';
-
-    if (isCorrect) {
+    if (serverResult.isCorrect) {
       return {
         success: true,
         isCorrect: true,
         verdict: 'GUILTY — Accusation Correct!',
         accusedSuspectName: suspect.name,
+        solution: serverResult.solution,
         message: 'Congratulations! Your deduction was verified by physical evidence and key timeline facts.',
       };
     }
