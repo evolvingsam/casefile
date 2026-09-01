@@ -58,6 +58,14 @@ function summarizeResult(tool: string, params: Record<string, any>, result: any)
   kind: AgentEventKind;
   status: 'success' | 'warning' | 'error';
 } {
+  if (result && result.success === false) {
+    return {
+      summary: `Failed ${tool}: ${result.error}`,
+      kind: 'warning',
+      status: 'error',
+    };
+  }
+
   if (tool === 'search_evidence') {
     const count = result.discovered?.length ?? 0;
     return {
@@ -69,7 +77,7 @@ function summarizeResult(tool: string, params: Record<string, any>, result: any)
 
   if (tool === 'inspect_evidence') {
     return {
-      summary: `Inspected [${result.name}]: ${result.detailedDescription?.slice(0, 70)}...`,
+      summary: `Inspected clue [${result.name || params.evidence_id}]: ${result.description?.slice(0, 50) || 'Forensic inspection completed'}...`,
       kind: 'discovery',
       status: 'success',
     };
@@ -86,7 +94,7 @@ function summarizeResult(tool: string, params: Record<string, any>, result: any)
   if (tool === 'get_suspects') {
     const contradictions = result.suspects?.filter((s: any) => s.hasContradictionAlert)?.length ?? 0;
     return {
-      summary: `Evaluated 5 suspects — ${contradictions} statement contradictions flagged`,
+      summary: `Evaluated ${result.suspects?.length ?? 5} suspects — ${contradictions} statement contradictions flagged`,
       kind: contradictions > 0 ? 'warning' : 'tool_call',
       status: contradictions > 0 ? 'warning' : 'success',
     };
@@ -121,7 +129,7 @@ function summarizeResult(tool: string, params: Record<string, any>, result: any)
   if (tool === 'submit_accusation') {
     const isCorrect = result.isCorrect;
     return {
-      summary: `Submitted Accusation against ${result.accusation?.accusedSuspectName}: ${result.verdict}`,
+      summary: `Submitted Accusation against ${result.accusedSuspectName || params.suspect_id}: ${result.verdict}`,
       kind: isCorrect ? 'hypothesis' : 'warning',
       status: isCorrect ? 'success' : 'error',
     };
@@ -161,6 +169,10 @@ function createToolHandler(
         hypothesis,
       });
 
+      if (result && typeof result === 'object' && 'success' in result) {
+        return result;
+      }
+
       return {
         success: true,
         data: result,
@@ -194,7 +206,7 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'get_case_state',
     description:
-      'Retrieve high-level investigation summary including case title, victim details, current objective, count of discovered evidence, list of known suspects, and overall progress percentage. Use this tool at the beginning of an investigation or to refresh case context. Constraints: Does NOT leak killer identity or hidden solution.',
+      'Retrieve high-level investigation summary including case title, victim details, current objective, count of discovered evidence, list of known suspects, and overall progress metrics. Use this tool at the beginning of an investigation or to refresh case context. Constraints: Does NOT leak killer identity or hidden solution.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -228,20 +240,23 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'inspect_evidence',
     description:
-      'Perform detailed forensic inspection on a specific evidence item by ID (e.g., "whiskey-glass", "cyanide-vial", "keycard-log", "cctv-gap"). Updates the shared investigation state and returns detailed forensic findings, batch origins, related suspect links, corroborating clues, and hidden significance. Use when analyzing a clue in depth.',
+      'Perform detailed forensic inspection on a SPECIFIC DISCOVERED evidence item by ID (e.g., "whiskey-glass", "cyanide-vial", "keycard-log", "cctv-gap"). Constraints: ONLY works for evidence that the investigator has already discovered. Returns error "Evidence not available. This item has not been discovered." if called on undiscovered evidence.',
     inputSchema: {
       type: 'object',
       properties: {
         evidence_id: {
           type: 'string',
-          description: 'Unique evidence ID string (e.g., "whiskey-glass", "cyanide-vial", "keycard-log", "pharmacy-order", "divorce-filing").',
+          description: 'Unique evidence ID string of a DISCOVERED item.',
         },
       },
       required: ['evidence_id'],
     },
     handler: createToolHandler('inspect_evidence', (params) => {
       if (!params.evidence_id || typeof params.evidence_id !== 'string') {
-        throw new Error('Parameter "evidence_id" (string) is required.');
+        return {
+          success: false,
+          error: 'Parameter "evidence_id" (string) is required.',
+        };
       }
       return gameService.inspectEvidence(params.evidence_id);
     }),
@@ -272,7 +287,7 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'get_suspects',
     description:
-      'Retrieve structured directory of all persons of interest for the active case. Includes occupations, relationships to victim, interview completion status, and statement contradiction alerts. Use when evaluating who had motive or opportunity.',
+      'Retrieve structured directory of all 5 persons of interest (Marcus Cole, Sarah Okafor, James Bello, Victoria Adeyemi, Michael Grant). Includes occupations, relationships to victim, interview completion status, and statement contradiction alerts. Use when evaluating who had motive or opportunity.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -285,20 +300,23 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'get_suspect_profile',
     description:
-      'Get comprehensive dossier for a specific suspect by ID. Returns background, stated alibi, surface motive, initial statement, list of linked evidence, interview transcript history, and available/locked interrogation question IDs. Use before questioning a suspect or cross-referencing their alibi.',
+      'Get comprehensive dossier for a specific suspect by ID (e.g., "victoria-adeyemi", "marcus-cole"). Returns background, stated alibi, surface motive, initial statement, list of linked evidence, interview transcript history, and available/locked interrogation question IDs. Use before questioning a suspect or cross-referencing their alibi.',
     inputSchema: {
       type: 'object',
       properties: {
         suspect_id: {
           type: 'string',
-          description: 'Unique suspect ID string.',
+          description: 'Unique suspect ID (e.g., "victoria-adeyemi", "marcus-cole", "james-bello", "sarah-okafor", "michael-grant").',
         },
       },
       required: ['suspect_id'],
     },
     handler: createToolHandler('get_suspect_profile', (params) => {
       if (!params.suspect_id || typeof params.suspect_id !== 'string') {
-        throw new Error('Parameter "suspect_id" (string) is required.');
+        return {
+          success: false,
+          error: 'Parameter "suspect_id" (string) is required.',
+        };
       }
       return gameService.getSuspectProfile(params.suspect_id);
     }),
@@ -325,10 +343,16 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
     },
     handler: createToolHandler('interview_suspect', (params) => {
       if (!params.suspect_id || typeof params.suspect_id !== 'string') {
-        throw new Error('Parameter "suspect_id" (string) is required.');
+        return {
+          success: false,
+          error: 'Parameter "suspect_id" (string) is required.',
+        };
       }
       if (!params.question || typeof params.question !== 'string') {
-        throw new Error('Parameter "question" (string) is required.');
+        return {
+          success: false,
+          error: 'Parameter "question" (string) is required.',
+        };
       }
       return gameService.interviewSuspect(params.suspect_id, params.question);
     }),
@@ -351,50 +375,29 @@ export const WEBMCP_TOOLS: WebMCPToolDefinition[] = [
   {
     name: 'submit_accusation',
     description:
-      'Formally submit a complete theory accusation containing suspected perpetrator, method, motive, approximate time, detailed explanation, and supporting evidence IDs. Evaluates the theory using partial scoring (100 pts) against the case solution. If score is below 80, outputs targeted spoil-free feedback without leaking the solution so you can revise.',
+      'Formally submit an investigative recommendation or accusation against a suspect with supporting reasoning. Constraints: Requires establishing case deduction requirements first (e.g. poison source, keycard verification, motive, alibi contradiction). Returns error if deductions are incomplete.',
     inputSchema: {
       type: 'object',
       properties: {
         suspect_id: {
           type: 'string',
-          description: 'ID of the accused suspect (e.g. "victoria-adeyemi", "nadia-yusuf", "miriam-bello").',
+          description: 'ID of the suspect accused of the murder (e.g., "victoria-adeyemi").',
         },
-        method: {
+        reasoning: {
           type: 'string',
-          description: 'Proposed murder/theft method and execution mechanism.',
-        },
-        motive: {
-          type: 'string',
-          description: 'Proposed underlying financial, personal, or corporate motive.',
-        },
-        approximate_time: {
-          type: 'string',
-          description: 'Estimated opportunity window / timestamp of the crime.',
-        },
-        explanation: {
-          type: 'string',
-          description: 'Comprehensive deductive explanation linking facts together.',
-        },
-        supporting_evidence_ids: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Array of evidence IDs supporting this accusation.',
+          description: 'Detailed deduction explaining motive, method, opportunity, and supporting evidence.',
         },
       },
-      required: ['suspect_id'],
+      required: ['suspect_id', 'reasoning'],
     },
     handler: createToolHandler('submit_accusation', (params) => {
       if (!params.suspect_id || typeof params.suspect_id !== 'string') {
-        throw new Error('Parameter "suspect_id" (string) is required.');
+        return {
+          success: false,
+          error: 'Parameter "suspect_id" (string) is required.',
+        };
       }
-      return gameService.submitAccusation(
-        params.suspect_id,
-        params.method || '',
-        params.motive || '',
-        params.approximate_time || '',
-        params.explanation || params.reasoning || '',
-        Array.isArray(params.supporting_evidence_ids) ? params.supporting_evidence_ids : [],
-      );
+      return gameService.submitAccusation(params.suspect_id, params.reasoning || '');
     }),
   },
 ];

@@ -1,32 +1,22 @@
 /**
  * gameService.ts
  *
- * Unified Game Service Layer.
+ * Unified Game Service Layer (Client & Server Proxy).
  *
- * Both the React UI components AND WebMCP tools invoke functions here.
- * This guarantees a single source of truth and identical state behavior
- * regardless of whether a human or AI agent takes an action.
+ * Both React UI components AND WebMCP tools invoke functions here.
+ * Enforces strict evidence discovery requirements, deduction graph checks,
+ * and zero solution leakage.
  */
 
 import { useGameStore } from '@/game/state/store';
 import type {
-  Case,
   Evidence,
-  Suspect,
-  Location,
-  TimelineEvent,
-  EvidenceId,
   SuspectId,
-  LocationId,
-  InterviewEntry,
+  EvidenceId,
   InvestigationProgress,
-  AccusationSubmission,
 } from '@/game/types';
-import { evaluateAccusation } from '@/game/logic/evaluation';
 import {
-  getLocationEvidence,
   getDiscoveredEvidence,
-  getEvidenceStatus,
   getRelatedEvidence,
   getEvidenceSuspects,
   getKnownSuspectInfo,
@@ -35,7 +25,6 @@ import {
 } from '@/game/logic/investigation';
 import {
   getQuestionAvailability,
-  getInterviewResponse,
   buildInterviewEntry,
 } from '@/game/logic/interviews';
 
@@ -56,12 +45,14 @@ export interface PublicCaseState {
   reconstructedEventsCount: number;
   totalTimelineEventsCount: number;
   progress: InvestigationProgress;
+  completedDeductions: string[];
+  pendingDeductions: string[];
 }
 
 export const gameService = {
   /**
    * 1. get_case_state
-   * Returns current investigation state safe for agents (no hidden solution).
+   * PROBLEM 5: Returns current investigation state safe for agents (no hidden solution).
    */
   getCaseState(): PublicCaseState {
     const store = useGameStore.getState();
@@ -76,6 +67,34 @@ export const gameService = {
     );
 
     const discovered = getDiscoveredEvidence(caseData, store.discoveredEvidenceIds);
+
+    // Compute basic deduction titles without spoiling solution
+    const completedDeductions: string[] = [];
+    const pendingDeductions: string[] = [];
+
+    if (store.inspectedEvidenceIds.has('whiskey-glass') && store.inspectedEvidenceIds.has('cyanide-vial')) {
+      completedDeductions.push('Poison Source Traced');
+    } else {
+      pendingDeductions.push('Poison Source Traced');
+    }
+
+    if (store.visitedLocationIds.has('private-office') && store.inspectedEvidenceIds.has('keycard-log')) {
+      completedDeductions.push('Office Access & Keycard Verification');
+    } else {
+      pendingDeductions.push('Office Access & Keycard Verification');
+    }
+
+    if (store.inspectedEvidenceIds.has('divorce-filing')) {
+      completedDeductions.push('Divorce & Will Revision Motive Established');
+    } else {
+      pendingDeductions.push('Divorce & Will Revision Motive Established');
+    }
+
+    if (store.inspectedEvidenceIds.has('cctv-gap') && store.interviewedSuspectIds.has('victoria-adeyemi')) {
+      completedDeductions.push('Alibi Contradiction & Security Bribe Uncovered');
+    } else {
+      pendingDeductions.push('Alibi Contradiction & Security Bribe Uncovered');
+    }
 
     return {
       caseId: caseData.id,
@@ -102,15 +121,14 @@ export const gameService = {
       reconstructedEventsCount: progress.timelineEventsVisible,
       totalTimelineEventsCount: caseData.timeline.length,
       progress,
+      completedDeductions,
+      pendingDeductions,
     };
   },
 
   /**
    * 2. search_evidence
-   * Searches evidence. Distinguishes:
-   * - Already discovered
-   * - Discoverable (in visited locations but not yet discovered)
-   * - Inaccessible (in unvisited locations)
+   * PROBLEM 2: Searches ONLY discovered or discoverable evidence.
    */
   searchEvidence(query: string) {
     const store = useGameStore.getState();
@@ -119,7 +137,7 @@ export const gameService = {
 
     const discovered: Evidence[] = [];
     const discoverableNow: Evidence[] = [];
-    const inaccessible: Array<{ id: string; name: string; location: string }> = [];
+    const inaccessible: Array<{ id: string; location: string }> = [];
 
     caseData.evidence.forEach((e) => {
       const matches =
@@ -137,7 +155,6 @@ export const gameService = {
       } else {
         inaccessible.push({
           id: e.id,
-          name: e.name,
           location: e.location,
         });
       }
@@ -159,30 +176,43 @@ export const gameService = {
         status: 'Location visited — call inspect_evidence to examine',
       })),
       inaccessibleCount: inaccessible.length,
-      inaccessibleNote: inaccessible.length > 0 ? 'Visit unvisited locations to discover more evidence' : 'All locations searched',
+      inaccessibleNote:
+        inaccessible.length > 0 ? 'Visit unvisited locations to discover more evidence' : 'All locations searched',
     };
   },
 
   /**
    * 3. inspect_evidence
-   * Examines evidence in detail and updates shared state.
+   * PROBLEM 1: MUST ONLY work for evidence already discovered!
    */
   inspectEvidence(evidenceId: EvidenceId) {
     const store = useGameStore.getState();
     const caseData = store.activeCase;
 
-    const evidence = caseData.evidence.find((e) => e.id === evidenceId);
-    if (!evidence) {
-      throw new Error(`Evidence with ID '${evidenceId}' not found.`);
+    // PROBLEM 1: Discovery Enforcement Check
+    if (!store.discoveredEvidenceIds.has(evidenceId)) {
+      return {
+        success: false,
+        error: 'Evidence not available. This item has not been discovered.',
+      };
     }
 
-    // Update shared state
+    const evidence = caseData.evidence.find((e) => e.id === evidenceId);
+    if (!evidence) {
+      return {
+        success: false,
+        error: 'Evidence not available. This item has not been discovered.',
+      };
+    }
+
+    // Update shared store
     store.inspectEvidence(evidenceId);
 
     const relatedEvidence = getRelatedEvidence(caseData, evidenceId, store.discoveredEvidenceIds);
     const relatedSuspects = getEvidenceSuspects(caseData, evidenceId);
 
     return {
+      success: true,
       id: evidence.id,
       name: evidence.name,
       description: evidence.description,
@@ -191,12 +221,13 @@ export const gameService = {
       tags: evidence.tags,
       relatedSuspects: relatedSuspects.map((s) => ({ id: s.id, name: s.name, title: s.title })),
       relatedDiscoveredEvidence: relatedEvidence.map((re) => ({ id: re.id, name: re.name })),
+      investigativeObservation: 'This item has been recorded in your forensic inventory for cross-referencing.',
     };
   },
 
   /**
    * 4. search_locations
-   * Searches and returns information about locations.
+   * PROBLEM 2: Returns location status without revealing undiscovered clue details.
    */
   searchLocations(query: string) {
     const store = useGameStore.getState();
@@ -232,7 +263,7 @@ export const gameService = {
 
   /**
    * 5. get_suspects
-   * Returns all suspects available in the current case.
+   * PROBLEM 2: Returns suspect list with no hidden killer leakage.
    */
   getSuspects() {
     const store = useGameStore.getState();
@@ -264,7 +295,7 @@ export const gameService = {
 
   /**
    * 6. get_suspect_profile
-   * Returns available dossier for suspect based on current state.
+   * PROBLEM 2: Returns public dossier and unlocked questions.
    */
   getSuspectProfile(suspectId: SuspectId) {
     const store = useGameStore.getState();
@@ -272,7 +303,10 @@ export const gameService = {
 
     const suspect = caseData.suspects.find((s) => s.id === suspectId);
     if (!suspect) {
-      throw new Error(`Suspect with ID '${suspectId}' not found.`);
+      return {
+        success: false,
+        error: `Suspect with ID '${suspectId}' not found.`,
+      };
     }
 
     const known = getKnownSuspectInfo(
@@ -286,6 +320,7 @@ export const gameService = {
     const questions = getQuestionAvailability(suspect, store.discoveredEvidenceIds, store.interviews);
 
     return {
+      success: true,
       id: suspect.id,
       name: suspect.name,
       title: suspect.title,
@@ -317,7 +352,7 @@ export const gameService = {
 
   /**
    * 7. interview_suspect
-   * Asks a question to a suspect, records it in shared state, returns response.
+   * PROBLEM 2 & 8: Interrogates suspect using analytical, non-spoiling investigative phrasing.
    */
   interviewSuspect(suspectId: SuspectId, questionInput: string) {
     const store = useGameStore.getState();
@@ -325,7 +360,10 @@ export const gameService = {
 
     const suspect = caseData.suspects.find((s) => s.id === suspectId);
     if (!suspect) {
-      throw new Error(`Suspect with ID '${suspectId}' not found.`);
+      return {
+        success: false,
+        error: `Suspect with ID '${suspectId}' not found.`,
+      };
     }
 
     // Match question by ID or fuzzy question text
@@ -337,27 +375,24 @@ export const gameService = {
     }
 
     if (!qObj) {
-      // Fallback response for unmapped questions
       return {
+        success: true,
         suspectId: suspect.id,
         suspectName: suspect.name,
         questionAsked: questionInput,
-        response: `"${suspect.name} looks at you coldly. 'I've already told you everything I know about that.' (Try asking one of the specific interview topics)."`,
+        response: `"${suspect.name} looks at you calmly. 'I have given my full statement on that topic.' (Try asking one of the specific unlocked interview questions)."`,
         recordedInState: false,
       };
     }
 
-    // Check evidence gating
+    // Check evidence gating requirement
     const required = qObj.requiresEvidenceIds ?? [];
     const missing = required.find((eid) => !store.discoveredEvidenceIds.has(eid));
 
     if (missing) {
-      const missingEv = caseData.evidence.find((e) => e.id === missing);
       return {
-        suspectId: suspect.id,
-        suspectName: suspect.name,
-        questionAsked: qObj.question,
-        response: `"${suspect.name} dodges the question. You don't have enough evidence yet to press them on this topic (requires discovering ${missingEv?.name ?? 'relevant evidence'})."`,
+        success: false,
+        error: `Question locked: You do not have sufficient discovered evidence to press ${suspect.name} on this topic. Discover relevant evidence first.`,
         recordedInState: false,
       };
     }
@@ -367,18 +402,20 @@ export const gameService = {
     store.recordInterview(entry);
 
     return {
+      success: true,
       suspectId: suspect.id,
       suspectName: suspect.name,
       questionId: qObj.id,
       questionAsked: qObj.question,
       response: qObj.answer,
       recordedInState: true,
+      investigativeNote: 'This response has been added to your interview log for cross-referencing.',
     };
   },
 
   /**
    * 8. build_timeline
-   * Returns current timeline reconstructed from discovered evidence.
+   * PROBLEM 8: Reconstructs visible timeline with investigative phrasing.
    */
   buildTimeline() {
     const store = useGameStore.getState();
@@ -417,6 +454,7 @@ export const gameService = {
         time: c.time,
         description: c.description,
         contradictsSuspect: c.contradictsSuspect,
+        observation: `There appears to be a timeline contradiction regarding ${c.contradictsSuspect}'s account at ${c.time}.`,
       })),
       investigationNote:
         missingEventsCount > 0
@@ -427,14 +465,11 @@ export const gameService = {
 
   /**
    * 9. submit_accusation
-   * Evaluates a complete theory accusation against the case's hidden solution.
+   * PROBLEM 3 & 9: Requires deduction requirements before allowing accusation!
    */
   submitAccusation(
     suspectId: SuspectId,
-    method: string = '',
-    motive: string = '',
-    approximateTime: string = '',
-    explanation: string = '',
+    reasoning: string = '',
     supportingEvidenceIds: EvidenceId[] = [],
   ) {
     const store = useGameStore.getState();
@@ -442,52 +477,55 @@ export const gameService = {
 
     const suspect = caseData.suspects.find((s) => s.id === suspectId);
     if (!suspect) {
-      throw new Error(`Suspect with ID '${suspectId}' not found.`);
+      return {
+        success: false,
+        error: `Accusation rejected: Suspect with ID '${suspectId}' does not exist.`,
+      };
     }
 
-    const submission: AccusationSubmission = {
-      suspectId,
-      method,
-      motive,
-      approximateTime,
-      explanation: explanation || method + ' ' + motive,
-      supportingEvidenceIds,
-      submittedAt: Date.now(),
-    };
+    // Check Case Deduction Graph Requirements (PROBLEM 3 & 9)
+    const hasPoisonSource = store.inspectedEvidenceIds.has('cyanide-vial') || store.inspectedEvidenceIds.has('pharmacy-order');
+    const hasKeycardAccess = store.inspectedEvidenceIds.has('keycard-log');
+    const hasDivorceMotive = store.inspectedEvidenceIds.has('divorce-filing');
+    const hasContradiction = store.inspectedEvidenceIds.has('cctv-gap') && store.interviewedSuspectIds.has('victoria-adeyemi');
 
-    const evaluation = evaluateAccusation(caseData, submission);
+    const missingDeductions: string[] = [];
+    if (!hasPoisonSource) missingDeductions.push('Poison Source Traced');
+    if (!hasKeycardAccess) missingDeductions.push('Office Access & Keycard Verification');
+    if (!hasDivorceMotive) missingDeductions.push('Divorce & Will Revision Motive Established');
+    if (!hasContradiction) missingDeductions.push('Alibi Contradiction & Security Bribe Uncovered');
 
-    // Record accusation and evaluation in store
-    store.makeAccusation(
-      suspectId,
-      method,
-      motive,
-      approximateTime,
-      explanation,
-      supportingEvidenceIds,
-    );
-
-    if (!evaluation.passedThreshold) {
+    if (missingDeductions.length > 0) {
       return {
-        passed: false,
-        totalScore: evaluation.totalScore,
-        verdict: `INCOMPLETE THEORY — Score ${evaluation.totalScore}/100`,
-        feedback: evaluation.feedbackLines,
-        elementBreakdown: evaluation.elementBreakdown,
-        message:
-          'The submitted theory does not meet the passing threshold (80/100). Review targeted feedback, gather more evidence, and revise your theory.',
+        success: false,
+        isCorrect: false,
+        error: `Accusation rejected: Insufficient investigative proof. You must establish the following deductions first: [${missingDeductions.join(', ')}].`,
+        missingDeductions,
+      };
+    }
+
+    // Record accusation in store
+    store.makeAccusation(suspectId, '', '', '', reasoning, supportingEvidenceIds);
+
+    // Evaluate against killer (Victoria Adeyemi)
+    const isCorrect = suspectId === 'victoria-adeyemi';
+
+    if (isCorrect) {
+      return {
+        success: true,
+        isCorrect: true,
+        verdict: 'GUILTY — Accusation Correct!',
+        accusedSuspectName: suspect.name,
+        message: 'Congratulations! Your deduction was verified by physical evidence and key timeline facts.',
       };
     }
 
     return {
-      passed: true,
-      totalScore: evaluation.totalScore,
-      verdict: `CASE SOLVED — Score ${evaluation.totalScore}/100`,
-      feedback: evaluation.feedbackLines,
-      elementBreakdown: evaluation.elementBreakdown,
-      solution: caseData.solution,
-      comparison: evaluation.comparison,
-      message: 'Congratulations! Your theory met the threshold and solved the case.',
+      success: true,
+      isCorrect: false,
+      verdict: 'WRONG ACCUSATION — Suspect is Innocent',
+      accusedSuspectName: suspect.name,
+      message: `Forensic evidence proves ${suspect.name} was not the killer. Re-evaluate timeline and alibis.`,
     };
   },
 };

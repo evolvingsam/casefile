@@ -131,22 +131,25 @@ export function CaseSelectionPage() {
                   </p>
                 </div>
 
-                {/* Actions */}
-                <div className="pt-6 border-t mt-6" style={{ borderColor: 'var(--color-border-subtle)' }}>
-                  {isAvailable ? (
-                    <Button
-                      variant={isSelected ? 'primary' : 'secondary'}
-                      size="md"
-                      className="w-full justify-center"
-                      onClick={() => selectCase(c.id)}
-                    >
-                      {isSelected
-                        ? hasProgress
-                          ? 'CONTINUE INVESTIGATION →'
-                          : 'ENTER INVESTIGATION →'
-                        : 'SELECT CASE →'}
-                    </Button>
-                  ) : (
+                  {/* Actions */}
+                  <div className="pt-6 border-t mt-6" style={{ borderColor: 'var(--color-border-subtle)' }}>
+                    {isAvailable ? (
+                      <Button
+                        variant={isSelected ? 'primary' : 'secondary'}
+                        size="md"
+                        className="w-full justify-center"
+                        onClick={() => {
+                          selectCase(c.id);
+                          setPhase(hasProgress ? 'investigation' : 'briefing');
+                        }}
+                      >
+                        {isSelected
+                          ? hasProgress
+                            ? 'CONTINUE INVESTIGATION →'
+                            : 'ENTER BRIEFING →'
+                          : 'SELECT CASE →'}
+                      </Button>
+                    ) : (
                     <Button
                       variant="ghost"
                       size="md"

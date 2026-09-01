@@ -80,7 +80,7 @@ export async function runPlaytestCase052() {
     suspectProfiles[s.id] = profile;
 
     // Interview all available questions
-    for (const q of profile.availableQuestions) {
+    for (const q of profile.availableQuestions || []) {
       if (q.isAvailable) {
         const ans = gameService.interviewSuspect(s.id, q.questionId);
         interviewResults.push({ suspect: s.name, question: q.questionText, answer: ans.response });

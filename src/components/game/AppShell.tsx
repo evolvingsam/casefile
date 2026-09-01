@@ -9,17 +9,21 @@ import { BriefingPage }            from '@/components/game/BriefingPage';
 import { InvestigationWorkspace }  from '@/components/layout/InvestigationWorkspace';
 import { ResolutionPage }          from '@/components/game/ResolutionPage';
 
+import { Navbar } from '@/components/layout/Navbar';
+
 // Parse phase and view from window.location.hash
-function parseHash(): { phase: AppPhase | null; view: WorkspaceView | null } {
-  if (typeof window === 'undefined') return { phase: null, view: null };
+function parseHash(): { phase: AppPhase; view: WorkspaceView } {
+  if (typeof window === 'undefined') return { phase: 'landing', view: 'overview' };
   const hashStr = window.location.hash.replace(/^#/, '').trim();
-  if (!hashStr) return { phase: null, view: null };
+  if (!hashStr) return { phase: 'landing', view: 'overview' };
 
   const [phasePart, queryPart] = hashStr.split('?');
   const validPhases: AppPhase[] = ['landing', 'cases', 'briefing', 'investigation', 'resolution'];
-  const phase = validPhases.includes(phasePart as AppPhase) ? (phasePart as AppPhase) : null;
+  const phase: AppPhase = validPhases.includes(phasePart as AppPhase)
+    ? (phasePart as AppPhase)
+    : 'landing';
 
-  let view: WorkspaceView | null = null;
+  let view: WorkspaceView = 'overview';
   if (queryPart) {
     const params = new URLSearchParams(queryPart);
     const v = params.get('view');
@@ -30,6 +34,7 @@ function parseHash(): { phase: AppPhase | null; view: WorkspaceView | null } {
       'suspects',
       'timeline',
       'caseboard',
+      'deductions',
       'agent',
     ];
     if (v && validViews.includes(v as WorkspaceView)) {
@@ -42,7 +47,7 @@ function parseHash(): { phase: AppPhase | null; view: WorkspaceView | null } {
 
 // Build hash string from phase and view
 function buildHash(phase: AppPhase, view: WorkspaceView): string {
-  if (phase === 'landing') return '';
+  if (phase === 'landing') return '#landing';
   if (phase === 'investigation') {
     return view && view !== 'overview'
       ? `#investigation?view=${view}`
@@ -63,42 +68,59 @@ export function AppShell() {
   useEffect(() => {
     setIsMounted(true);
     const { phase: initialPhase, view: initialView } = parseHash();
-
-    if (initialPhase) {
-      setPhase(initialPhase);
-    }
-    if (initialView) {
-      setActiveView(initialView);
-    }
+    if (initialPhase) setPhase(initialPhase);
+    if (initialView) setActiveView(initialView);
   }, [setPhase, setActiveView]);
 
-  // 2. Sync URL Hash whenever phase or activeView changes
+  // 2. Sync URL Hash with pushState when phase or activeView changes
   useEffect(() => {
     if (!isMounted) return;
-    const newHash = buildHash(phase, activeView);
-    if (window.location.hash !== newHash) {
-      window.history.replaceState(null, '', newHash || window.location.pathname);
+    const targetHash = buildHash(phase, activeView);
+    if (window.location.hash !== targetHash) {
+      window.history.pushState({ phase, activeView }, '', targetHash);
     }
   }, [phase, activeView, isMounted]);
 
-  // 3. Listen to browser back/forward hash changes
+  // 3. Listen to browser Back / Forward buttons (popstate & hashchange)
   useEffect(() => {
-    const handleHashChange = () => {
+    const syncFromLocation = () => {
       const { phase: hPhase, view: hView } = parseHash();
-      if (hPhase && hPhase !== phase) setPhase(hPhase);
-      if (hView && hView !== activeView) setActiveView(hView);
+      const currentStore = useGameStore.getState();
+      if (hPhase !== currentStore.phase) setPhase(hPhase);
+      if (hView !== currentStore.activeView) setActiveView(hView);
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [phase, activeView, setPhase, setActiveView]);
+    window.addEventListener('popstate', syncFromLocation);
+    window.addEventListener('hashchange', syncFromLocation);
+    return () => {
+      window.removeEventListener('popstate', syncFromLocation);
+      window.removeEventListener('hashchange', syncFromLocation);
+    };
+  }, [setPhase, setActiveView]);
 
-  switch (phase) {
-    case 'landing':       return <LandingPage />;
-    case 'cases':         return <CaseSelectionPage />;
-    case 'briefing':      return <BriefingPage />;
-    case 'investigation': return <InvestigationWorkspace />;
-    case 'resolution':    return <ResolutionPage />;
-    default:              return <LandingPage />;
-  }
+  const renderCurrentPhase = () => {
+    switch (phase) {
+      case 'landing':
+        return <LandingPage />;
+      case 'cases':
+        return <CaseSelectionPage />;
+      case 'briefing':
+        return <BriefingPage />;
+      case 'investigation':
+        return <InvestigationWorkspace />;
+      case 'resolution':
+        return <ResolutionPage />;
+      default:
+        return <LandingPage />;
+    }
+  };
+
+  return (
+    <div className="min-h-dvh flex flex-col bg-void text-slate-100 font-sans selection:bg-amber-500/30 selection:text-amber-200">
+      <Navbar />
+      <main key={`${phase}-${activeView}`} className="flex-1 flex flex-col animate-fade-in">
+        {renderCurrentPhase()}
+      </main>
+    </div>
+  );
 }

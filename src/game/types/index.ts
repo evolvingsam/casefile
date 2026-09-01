@@ -26,11 +26,11 @@ export interface Suspect {
   relationship: string;
   motive: string;
   alibi: string;
-  secrets: string[];
+  secrets?: string[];
   initialStatement: string;
   interviewResponses: InterviewQuestion[];
   relatedEvidenceIds: EvidenceId[];
-  isKiller: boolean;
+  isKiller?: boolean;
 }
 
 // ─── Location ─────────────────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ export interface Evidence {
   relatedEvidenceIds: EvidenceId[];
   isRedHerring: boolean;
   contributesToSolution: boolean;
-  hiddenSignificance: string;
+  hiddenSignificance?: string;
 }
 
 // ─── Timeline Event ───────────────────────────────────────────────────────────
@@ -99,7 +99,8 @@ export interface DeductionRequirement {
   id: string;
   title: string;
   description: string;
-  requiredEvidenceIds: EvidenceId[];
+  requiredEvidenceIds?: EvidenceId[];
+  requiredInspectedEvidenceIds?: EvidenceId[];
   requiredInterviewQuestionIds?: string[];
   isFulfilled?: boolean;
 }
@@ -139,7 +140,7 @@ export interface Case {
   evidence: Evidence[];
   timeline: TimelineEvent[];
   hiddenRelationships?: HiddenRelationship[];
-  solution: CaseSolution;
+  solution?: CaseSolution;
   deductionRequirements?: DeductionRequirement[];
 }
 
@@ -156,6 +157,39 @@ export interface BoardConnection {
   label?: string;
   timestamp: number;
   author?: ActorType;
+}
+
+// ─── Player Hypothesis & Contradictions ───────────────────────────────────────
+
+export type CertaintyLevel =
+  | 'Possible'
+  | 'Probable'
+  | 'Confirmed'
+  | 'Speculative'
+  | 'Plausible'
+  | 'Highly Likely'
+  | 'Conclusive';
+
+export interface PlayerHypothesis {
+  id: string;
+  title?: string;
+  statement?: string;
+  reasoning?: string;
+  associatedSuspectId?: SuspectId;
+  associatedTimelineEventId?: string;
+  linkedEvidenceIds: EvidenceId[];
+  certainty: CertaintyLevel;
+  createdAt: number;
+}
+
+export interface PlayerContradictionFlag {
+  id: string;
+  title: string;
+  suspectId?: SuspectId;
+  timelineEventId?: string;
+  description: string;
+  evidenceIds: EvidenceId[];
+  createdAt: number;
 }
 
 // ─── Investigation Log ────────────────────────────────────────────────────────
@@ -208,34 +242,40 @@ export interface AgentRecommendation {
   recommendedAction: string;
 }
 
-// ─── Accusation & Theory Evaluation Types ─────────────────────────────────────
+// ─── Accusation Submission ───────────────────────────────────────────────────
 
 export interface AccusationSubmission {
   suspectId: SuspectId;
-  method: string;
-  motive: string;
-  approximateTime: string;
+  method?: string;
+  motive?: string;
+  approximateTime?: string;
   explanation: string;
+  reasoning?: string;
   supportingEvidenceIds: EvidenceId[];
   submittedAt: number;
 }
 
 export interface AccusationEvaluation {
-  totalScore: number; // 0 to 100
-  passedThreshold: boolean; // true if totalScore >= 80
-  perpetratorScore: number; // 0 or 30
-  methodScore: number; // 0 to 20
-  motiveScore: number; // 0 to 20
-  timelineScore: number; // 0 to 15
-  evidenceScore: number; // 0 to 15
-  feedbackLines: string[];
+  passedThreshold: boolean;
+  totalScore: number;
+  perpetratorScore: number;
+  methodScore: number;
+  motiveScore: number;
+  timelineScore: number;
+  evidenceScore: number;
   elementBreakdown: {
-    perpetratorCorrect: boolean;
-    methodRating: 'Correct' | 'Partial' | 'Incorrect';
-    motiveRating: 'Correct' | 'Partial' | 'Incorrect';
-    timelineRating: 'Correct' | 'Partial' | 'Incorrect';
-    evidenceRating: 'Strong' | 'Moderate' | 'Weak';
+    perpetrator: 'Correct' | 'Incorrect';
+    method: 'Correct' | 'Partial' | 'Incorrect';
+    motive: 'Correct' | 'Partial' | 'Incorrect';
+    timeline: 'Correct' | 'Partial' | 'Incorrect';
+    evidence: 'Correct' | 'Partial' | 'Incorrect';
+    perpetratorCorrect?: boolean;
+    methodRating?: 'Correct' | 'Partial' | 'Incorrect';
+    motiveRating?: 'Correct' | 'Partial' | 'Incorrect';
+    timelineRating?: 'Correct' | 'Partial' | 'Incorrect';
+    evidenceRating?: 'Correct' | 'Partial' | 'Incorrect';
   };
+  feedbackLines: string[];
   comparison?: {
     playerTheory: {
       suspectName: string;
@@ -254,31 +294,6 @@ export interface AccusationEvaluation {
       keyEvidenceNames: string[];
     };
   };
-}
-
-// ─── Human Deduction Layer Types ──────────────────────────────────────────────
-
-export type CertaintyLevel = 'Speculative' | 'Possible' | 'Probable' | 'Confirmed';
-
-export interface PlayerHypothesis {
-  id: string;
-  title: string;
-  statement: string;
-  certainty: CertaintyLevel;
-  associatedSuspectId?: SuspectId;
-  associatedTimelineEventId?: string;
-  linkedEvidenceIds: EvidenceId[];
-  createdAt: number;
-}
-
-export interface PlayerContradictionFlag {
-  id: string;
-  title: string;
-  description: string;
-  suspectId?: SuspectId;
-  evidenceIds: EvidenceId[];
-  timelineEventId?: string;
-  createdAt: number;
 }
 
 // ─── Navigation ───────────────────────────────────────────────────────────────

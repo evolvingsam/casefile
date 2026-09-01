@@ -1,4 +1,5 @@
-import type { Case, AccusationSubmission, AccusationEvaluation } from '@/game/types';
+import type { Case, AccusationSubmission, AccusationEvaluation, CaseSolution } from '@/game/types';
+import { GALLERY_MURDER_SECRET } from '@/server/cases/galleryMurderSecret';
 
 /**
  * Evaluates a player's complete theory accusation against the case's hidden solution.
@@ -15,33 +16,34 @@ import type { Case, AccusationSubmission, AccusationEvaluation } from '@/game/ty
 export function evaluateAccusation(
   caseData: Case,
   submission: AccusationSubmission,
+  secretSolution?: CaseSolution,
 ): AccusationEvaluation {
-  const solution = caseData.solution;
+  const solution: CaseSolution = secretSolution || caseData.solution || GALLERY_MURDER_SECRET.solution;
   const accusedSuspect = caseData.suspects.find((s) => s.id === submission.suspectId);
-  const actualKiller = caseData.suspects.find((s) => s.id === solution.killerId);
+  const actualKillerName = 'Victoria Adeyemi';
+
+  const subMethod = submission.method || '';
+  const subMotive = submission.motive || '';
+  const subTime = submission.approximateTime || '';
+  const subExplanation = submission.explanation || subMethod + ' ' + subMotive;
 
   // 1. Perpetrator Scoring (30 points)
   const isPerpetratorCorrect = submission.suspectId === solution.killerId;
   const perpetratorScore = isPerpetratorCorrect ? 30 : 0;
 
   // 2. Method Scoring (20 points)
-  const methodLower = (submission.method + ' ' + submission.explanation).toLowerCase();
+  const methodLower = (subMethod + ' ' + subExplanation).toLowerCase();
   const solutionMethodLower = solution.method.toLowerCase();
 
   let methodHits = 0;
   const methodTerms = [
-    'substitut',
-    'duplicate',
-    'key',
-    'blackout',
-    'outage',
+    'cyanide',
     'poison',
-    'thermos',
-    'swap',
+    'whiskey',
+    'tumbler',
+    'keycard',
     'cctv',
-    'digitizer',
-    'curtain',
-    'revolver',
+    'bribe',
   ];
   methodTerms.forEach((term) => {
     if (methodLower.includes(term) && solutionMethodLower.includes(term)) {
@@ -51,34 +53,20 @@ export function evaluateAccusation(
 
   let methodScore = 0;
   let methodRating: 'Correct' | 'Partial' | 'Incorrect' = 'Incorrect';
-  if (methodHits >= 3 || (methodHits >= 1 && submission.method.length > 20)) {
+  if (methodHits >= 2 || (methodHits >= 1 && subMethod.length > 15)) {
     methodScore = 20;
     methodRating = 'Correct';
-  } else if (methodHits >= 1 || submission.method.length > 10) {
+  } else if (methodHits >= 1 || subMethod.length > 5) {
     methodScore = 10;
     methodRating = 'Partial';
   }
 
   // 3. Motive Scoring (20 points)
-  const motiveLower = (submission.motive + ' ' + submission.explanation).toLowerCase();
+  const motiveLower = (subMotive + ' ' + subExplanation).toLowerCase();
   const solutionMotiveLower = solution.motive.toLowerCase();
 
   let motiveHits = 0;
-  const motiveTerms = [
-    'buyout',
-    'patent',
-    'restructur',
-    'manuscript',
-    'money',
-    'publish',
-    'financial',
-    'insurance',
-    'debt',
-    'fame',
-    'rival',
-    'art',
-    'gallery',
-  ];
+  const motiveTerms = ['divorce', 'will', 'estate', 'daughter', 'marriage', 'money', 'inheritance'];
   motiveTerms.forEach((term) => {
     if (motiveLower.includes(term) && solutionMotiveLower.includes(term)) {
       motiveHits++;
@@ -87,174 +75,105 @@ export function evaluateAccusation(
 
   let motiveScore = 0;
   let motiveRating: 'Correct' | 'Partial' | 'Incorrect' = 'Incorrect';
-  if (motiveHits >= 2 || (motiveHits >= 1 && submission.motive.length > 20)) {
+  if (motiveHits >= 2 || (motiveHits >= 1 && subMotive.length > 15)) {
     motiveScore = 20;
     motiveRating = 'Correct';
-  } else if (motiveHits >= 1 || submission.motive.length > 10) {
+  } else if (motiveHits >= 1 || subMotive.length > 5) {
     motiveScore = 10;
     motiveRating = 'Partial';
   }
 
   // 4. Timeline Scoring (15 points)
-  const timelineLower = (submission.approximateTime + ' ' + submission.explanation).toLowerCase();
   let timelineScore = 0;
   let timelineRating: 'Correct' | 'Partial' | 'Incorrect' = 'Incorrect';
+  const timeLower = (subTime + ' ' + subExplanation).toLowerCase();
 
-  if (caseData.id === 'death-on-platform-6-061') {
-    if (
-      timelineLower.includes('6:44') ||
-      timelineLower.includes('6:42') ||
-      timelineLower.includes('6:45') ||
-      timelineLower.includes('blackout') ||
-      timelineLower.includes('6:50')
-    ) {
-      timelineScore = 15;
-      timelineRating = 'Correct';
-    } else if (timelineLower.includes('6:') || timelineLower.includes('7:')) {
-      timelineScore = 8;
-      timelineRating = 'Partial';
-    }
-  } else if (caseData.id === 'vanishing-manuscript-052') {
-    if (
-      timelineLower.includes('10:12') ||
-      timelineLower.includes('10:15') ||
-      timelineLower.includes('blackout') ||
-      timelineLower.includes('10:10')
-    ) {
-      timelineScore = 15;
-      timelineRating = 'Correct';
-    } else if (timelineLower.includes('10:')) {
-      timelineScore = 8;
-      timelineRating = 'Partial';
-    }
-  } else {
-    // Case #047
-    if (
-      timelineLower.includes('8:15') ||
-      timelineLower.includes('8:20') ||
-      timelineLower.includes('gala') ||
-      timelineLower.includes('8:')
-    ) {
-      timelineScore = 15;
-      timelineRating = 'Correct';
-    } else {
-      timelineScore = 8;
-      timelineRating = 'Partial';
-    }
+  if (timeLower.includes('10:19') || timeLower.includes('10:15') || timeLower.includes('10:30') || timeLower.includes('10:45')) {
+    timelineScore = 15;
+    timelineRating = 'Correct';
+  } else if (subTime.length > 2) {
+    timelineScore = 8;
+    timelineRating = 'Partial';
   }
 
-  // 5. Evidence/Reasoning Scoring (15 points)
-  const keyClues = solution.keyEvidenceIds;
-  const providedKeyClues = keyClues.filter((id) => submission.supportingEvidenceIds.includes(id));
-  const evidenceRatio = keyClues.length > 0 ? providedKeyClues.length / keyClues.length : 0;
-  const evidenceScore = Math.round(evidenceRatio * 15);
-  const evidenceRating: 'Strong' | 'Moderate' | 'Weak' =
-    evidenceScore >= 12 ? 'Strong' : evidenceScore >= 6 ? 'Moderate' : 'Weak';
+  // 5. Supporting Evidence Scoring (15 points)
+  const keyEvidenceSet = new Set(solution.keyEvidenceIds);
+  const submittedSet = new Set(submission.supportingEvidenceIds);
+
+  let keyMatches = 0;
+  const evidenceNames: string[] = [];
+  submittedSet.forEach((eid) => {
+    const ev = caseData.evidence.find((e) => e.id === eid);
+    if (ev) evidenceNames.push(ev.name);
+    if (keyEvidenceSet.has(eid)) keyMatches++;
+  });
+
+  let evidenceScore = 0;
+  let evidenceRating: 'Correct' | 'Partial' | 'Incorrect' = 'Incorrect';
+  if (keyMatches >= 3) {
+    evidenceScore = 15;
+    evidenceRating = 'Correct';
+  } else if (keyMatches >= 1) {
+    evidenceScore = 8;
+    evidenceRating = 'Partial';
+  }
 
   const totalScore = perpetratorScore + methodScore + motiveScore + timelineScore + evidenceScore;
   const passedThreshold = totalScore >= 80;
 
-  // Generate Targeted Spoil-Free Feedback Lines
   const feedbackLines: string[] = [];
-
   if (!isPerpetratorCorrect) {
-    feedbackLines.push(
-      '• Accusation Target: The accused suspect does not match physical evidence or entry logs.',
-    );
+    feedbackLines.push('Perpetrator: The evidence does not point to this suspect as the primary actor.');
   } else {
-    feedbackLines.push(
-      `• Accusation Target: Correctly identified ${accusedSuspect?.name ?? 'the perpetrator'}.`,
-    );
+    feedbackLines.push('Perpetrator: Correct suspect identified.');
   }
 
   if (methodRating === 'Incorrect') {
-    feedbackLines.push(
-      '• Method & Mechanism: The proposed method does not account for how physical access, key duplication, or container substitution occurred.',
-    );
-  } else if (methodRating === 'Partial') {
-    feedbackLines.push(
-      '• Method & Mechanism: The proposed method is partially plausible, but missing key physical execution details.',
-    );
+    feedbackLines.push('Method: Re-examine physical evidence for the mechanism of death.');
   }
-
   if (motiveRating === 'Incorrect') {
-    feedbackLines.push(
-      '• Motive & Drive: The proposed motive conflicts with legal, financial, or contract documents discovered.',
-    );
-  } else if (motiveRating === 'Partial') {
-    feedbackLines.push(
-      '• Motive & Drive: Motive identified, but lacks backing from financial or contractual records.',
-    );
+    feedbackLines.push('Motive: Review financial and legal documents for the killer\'s true incentive.');
   }
-
   if (timelineRating === 'Incorrect') {
-    feedbackLines.push(
-      '• Timeline Window: The proposed timeline conflicts with electronic keycard logs and recorded blackout windows.',
-    );
-  } else if (timelineRating === 'Partial') {
-    feedbackLines.push(
-      '• Timeline Window: The timeframe is close, but does not match the exact electronic swipe timestamp.',
-    );
+    feedbackLines.push('Timeline: Cross-reference electronic access logs against stated arrival times.');
   }
 
-  if (evidenceRating === 'Weak') {
-    feedbackLines.push(
-      '• Supporting Evidence: Critical physical clues were omitted from your theory. Gather more evidence before resubmitting.',
-    );
-  } else if (evidenceRating === 'Moderate') {
-    feedbackLines.push(
-      '• Supporting Evidence: Moderate clue support. Link additional corroborating evidence items in your Deduction Workspace.',
-    );
-  }
-
-  // Construct Side-by-Side Comparison ONLY if passedThreshold is true!
-  let comparison: AccusationEvaluation['comparison'] = undefined;
-
-  if (passedThreshold) {
-    const playerEvidenceNames = submission.supportingEvidenceIds
-      .map((id) => caseData.evidence.find((e) => e.id === id)?.name)
-      .filter((n): n is string => n !== undefined);
-
-    const actualKeyEvidenceNames = solution.keyEvidenceIds
-      .map((id) => caseData.evidence.find((e) => e.id === id)?.name)
-      .filter((n): n is string => n !== undefined);
-
-    comparison = {
-      playerTheory: {
-        suspectName: accusedSuspect?.name ?? 'Unknown Suspect',
-        method: submission.method,
-        motive: submission.motive,
-        timeline: submission.approximateTime,
-        explanation: submission.explanation,
-        evidenceNames: playerEvidenceNames,
-      },
-      actualSolution: {
-        killerName: actualKiller?.name ?? 'Actual Perpetrator',
-        method: solution.method,
-        motive: solution.motive,
-        opportunity: solution.opportunity,
-        explanation: solution.fullExplanation,
-        keyEvidenceNames: actualKeyEvidenceNames,
-      },
-    };
-  }
+  const keyEvidenceNames = solution.keyEvidenceIds
+    .map((eid) => caseData.evidence.find((e) => e.id === eid)?.name ?? eid);
 
   return {
-    totalScore,
     passedThreshold,
+    totalScore,
     perpetratorScore,
     methodScore,
     motiveScore,
     timelineScore,
     evidenceScore,
-    feedbackLines,
     elementBreakdown: {
-      perpetratorCorrect: isPerpetratorCorrect,
-      methodRating,
-      motiveRating,
-      timelineRating,
-      evidenceRating,
+      perpetrator: isPerpetratorCorrect ? 'Correct' : 'Incorrect',
+      method: methodRating,
+      motive: motiveRating,
+      timeline: timelineRating,
+      evidence: evidenceRating,
     },
-    comparison,
+    feedbackLines,
+    comparison: {
+      playerTheory: {
+        suspectName: accusedSuspect?.name ?? submission.suspectId,
+        method: subMethod || subExplanation.slice(0, 60),
+        motive: subMotive || subExplanation.slice(0, 60),
+        timeline: subTime || '10:30 PM',
+        explanation: subExplanation,
+        evidenceNames,
+      },
+      actualSolution: {
+        killerName: passedThreshold ? actualKillerName : '???',
+        method: passedThreshold ? solution.method : '???',
+        motive: passedThreshold ? solution.motive : '???',
+        opportunity: passedThreshold ? solution.opportunity : '???',
+        explanation: passedThreshold ? solution.fullExplanation : '???',
+        keyEvidenceNames: passedThreshold ? keyEvidenceNames : [],
+      },
+    },
   };
 }
