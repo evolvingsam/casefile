@@ -1,5 +1,6 @@
 'use client';
 
+import React, { useState } from 'react';
 import { useGameStore } from '@/game/state/store';
 import { getAllCaseSummaries } from '@/game/data/registry';
 import { Button } from '@/components/ui/Button';
@@ -10,6 +11,8 @@ export function CaseSelectionPage() {
   const selectCase = useGameStore((s) => s.selectCase);
   const setPhase = useGameStore((s) => s.setPhase);
   const caseStates = useGameStore((s) => s.caseStates);
+
+  const [hoveredCaseId, setHoveredCaseId] = useState<string | null>(null);
 
   const cases = getAllCaseSummaries();
 
@@ -33,7 +36,7 @@ export function CaseSelectionPage() {
           <div>
             <button
               onClick={() => setPhase('landing')}
-              className="text-xs mb-3 flex items-center gap-1 transition-colors text-muted hover:text-white"
+              className="text-xs mb-3 flex items-center gap-1 transition-colors text-muted hover:text-white cursor-pointer"
             >
               ← Back to Main
             </button>
@@ -56,24 +59,44 @@ export function CaseSelectionPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {cases.map((c) => {
             const isSelected = activeCaseId === c.id;
+            const isHovered = hoveredCaseId === c.id;
+            // Highlighting moves dynamically with mouse hover; defaults to selected card when no mouse hover
+            const isHighlighted = isHovered || (hoveredCaseId === null && isSelected);
+            
             const isAvailable = c.status === 'available';
             const cState = caseStates[c.id];
             const hasProgress = cState && cState.discoveredEvidenceIds && cState.discoveredEvidenceIds.size > 0;
 
+            const handleCardClick = () => {
+              if (!isAvailable) return;
+              selectCase(c.id);
+              setPhase(hasProgress ? 'investigation' : 'briefing');
+            };
+
             return (
               <div
                 key={c.id}
-                className="card p-6 flex flex-col justify-between relative overflow-hidden transition-all duration-300 hover:border-amber-500/50"
+                onMouseEnter={() => setHoveredCaseId(c.id)}
+                onMouseLeave={() => setHoveredCaseId(null)}
+                onClick={handleCardClick}
+                className={`card p-6 flex flex-col justify-between relative overflow-hidden transition-all duration-300 transform ${
+                  isAvailable ? 'cursor-pointer' : 'cursor-not-allowed opacity-75'
+                } ${
+                  isHighlighted
+                    ? '-translate-y-1.5 shadow-xl shadow-amber-500/10 border-amber-400'
+                    : 'hover:border-slate-600'
+                }`}
                 style={{
-                  background: isSelected ? 'oklch(75% 0.18 75 / 0.04)' : 'var(--color-surface-2)',
-                  border: isSelected
+                  background: isHighlighted ? 'oklch(75% 0.18 75 / 0.08)' : 'var(--color-surface-2)',
+                  boxShadow: isHighlighted ? '0 0 20px oklch(75% 0.18 75 / 0.15)' : 'none',
+                  border: isHighlighted
                     ? '2px solid var(--color-amber)'
                     : '1px solid var(--color-border-subtle)',
                 }}
               >
                 {isSelected && (
                   <div
-                    className="absolute top-0 right-0 px-3 py-1 text-[10px] font-mono font-bold tracking-widest uppercase rounded-bl"
+                    className="absolute top-0 right-0 px-3 py-1 text-[10px] font-mono font-bold tracking-widest uppercase rounded-bl shadow-sm z-10"
                     style={{ background: 'var(--color-amber)', color: 'var(--color-void)' }}
                   >
                     ACTIVE CASE
@@ -131,25 +154,25 @@ export function CaseSelectionPage() {
                   </p>
                 </div>
 
-                  {/* Actions */}
-                  <div className="pt-6 border-t mt-6" style={{ borderColor: 'var(--color-border-subtle)' }}>
-                    {isAvailable ? (
-                      <Button
-                        variant={isSelected ? 'primary' : 'secondary'}
-                        size="md"
-                        className="w-full justify-center"
-                        onClick={() => {
-                          selectCase(c.id);
-                          setPhase(hasProgress ? 'investigation' : 'briefing');
-                        }}
-                      >
-                        {isSelected
-                          ? hasProgress
-                            ? 'CONTINUE INVESTIGATION →'
-                            : 'ENTER BRIEFING →'
-                          : 'SELECT CASE →'}
-                      </Button>
-                    ) : (
+                {/* Actions */}
+                <div className="pt-6 border-t mt-6" style={{ borderColor: 'var(--color-border-subtle)' }}>
+                  {isAvailable ? (
+                    <Button
+                      variant={isHighlighted ? 'primary' : 'secondary'}
+                      size="md"
+                      className="w-full justify-center"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCardClick();
+                      }}
+                    >
+                      {isSelected
+                        ? hasProgress
+                          ? 'CONTINUE INVESTIGATION →'
+                          : 'ENTER BRIEFING →'
+                        : 'SELECT CASE →'}
+                    </Button>
+                  ) : (
                     <Button
                       variant="ghost"
                       size="md"
