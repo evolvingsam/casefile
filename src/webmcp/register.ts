@@ -4,27 +4,18 @@
  * Registers Casefile's WebMCP tools in the browser runtime.
  *
  * Attaches to:
- * - navigator.modelContextProtocol (if supported by standard browser polyfill/extension)
- * - window.webMCP / window.casefileWebMCP (global registry for client & subagents)
+ * - document.modelContext
  */
 
 import { WEBMCP_TOOLS, WEBMCP_TOOL_MAP, type WebMCPToolDefinition } from './tools';
 
-export interface WebMCPRegistry {
-  isRegistered: boolean;
-  tools: WebMCPToolDefinition[];
-  executeTool: (name: string, params?: Record<string, any>) => Promise<any>;
-}
-
 declare global {
-  interface Window {
-    webMCP?: {
-      registerTool?: (tool: any) => void;
-      getTools?: () => any[];
-      executeTool?: (name: string, params?: any) => Promise<any>;
-      [key: string]: any;
+  interface Document {
+    modelContext?: {
+      registerTool: (tool: any) => void;
+      getTools: () => Promise<any[]>;
+      executeTool: (tool: any, params: string) => Promise<any>;
     };
-    casefileWebMCP?: WebMCPRegistry;
   }
 }
 
@@ -40,58 +31,50 @@ export async function executeWebMCPTool(name: string, params: Record<string, any
 }
 
 /** Registers WebMCP tools on window load or component mount */
-export function registerWebMCP(): WebMCPRegistry {
-  if (typeof window === 'undefined') {
-    return {
-      isRegistered: false,
-      tools: WEBMCP_TOOLS,
-      executeTool: executeWebMCPTool,
-    };
+export async function registerWebMCP() {
+  if (typeof document === 'undefined') {
+    return;
   }
 
-  // 1. Create global Casefile registry on window object
-  const registry: WebMCPRegistry = {
-    isRegistered: true,
-    tools: WEBMCP_TOOLS,
-    executeTool: executeWebMCPTool,
-  };
-
-  window.casefileWebMCP = registry;
-
-  // 2. Register on window.webMCP if WebMCP host / Chrome extension polyfill is active
-  if (!window.webMCP) {
-    window.webMCP = {};
+  if (!document.modelContext) {
+    console.warn("[WebMCP] document.modelContext is unavailable");
+    return;
   }
 
-  window.webMCP.getTools = () =>
-    WEBMCP_TOOLS.map((t) => ({
-      name: t.name,
-      description: t.description,
-      inputSchema: t.inputSchema,
-    }));
+  const registeredTools: string[] = [];
 
-  window.webMCP.executeTool = async (name: string, params: any) => {
-    return executeWebMCPTool(name, params || {});
-  };
+  for (const tool of WEBMCP_TOOLS) {
+    try {
+      document.modelContext.registerTool({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        execute: async (input: any) => {
+          return await tool.handler(input);
+        }
+      });
 
-  // 3. Register on navigator.modelContextProtocol if present
-  const nav = navigator as any;
-  if (nav.modelContextProtocol && typeof nav.modelContextProtocol.registerTool === 'function') {
-    WEBMCP_TOOLS.forEach((tool) => {
-      try {
-        nav.modelContextProtocol.registerTool({
-          name: tool.name,
-          description: tool.description,
-          inputSchema: tool.inputSchema,
-          handler: tool.handler,
-        });
-      } catch {
-        // Safe fallback if already registered
-      }
-    });
+      registeredTools.push(tool.name);
+    } catch (error) {
+      console.error(
+        `[WebMCP] Failed to register ${tool.name}:`,
+        error
+      );
+    }
   }
 
-  console.log('[WebMCP] Registered 9 investigation tools for Casefile:', WEBMCP_TOOLS.map((t) => t.name));
+  console.log(
+    `[WebMCP] Successfully registered ${registeredTools.length}/${WEBMCP_TOOLS.length} tools:`,
+    registeredTools
+  );
 
-  return registry;
+  try {
+    const registered = await document.modelContext.getTools();
+    console.log(
+      "[WebMCP] Native registry:",
+      registered.map(tool => tool.name)
+    );
+  } catch (error) {
+    console.error("[WebMCP] Failed to fetch native registry:", error);
+  }
 }
