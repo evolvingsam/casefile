@@ -33,6 +33,41 @@ function ViewRouter() {
   }
 }
 
+function HeaderActivityTicker() {
+  const toolActivity = useGameStore((s) => s.toolActivity);
+  const latest = toolActivity[toolActivity.length - 1];
+
+  if (!latest) return null;
+
+  const isRunning = latest.status === 'running';
+  const isError = latest.status === 'error';
+
+  let prefix = '✓ ';
+  let badgeColor = 'var(--color-amber)';
+
+  if (isRunning) {
+    prefix = '→ ';
+  } else if (isError) {
+    prefix = '✗ ';
+    badgeColor = 'var(--color-crimson)';
+  }
+
+  return (
+    <div
+      id="header-activity-ticker"
+      className="hidden lg:flex items-center gap-2 px-3 py-1 rounded bg-[var(--color-surface-hover)] border border-[var(--color-border-subtle)] text-xs font-mono"
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+      <span className="font-bold uppercase text-[10px] tracking-wider shrink-0" style={{ color: badgeColor }}>
+        AI INVESTIGATION:
+      </span>
+      <span className="text-[var(--color-text-secondary)] truncate max-w-xs">
+        {prefix}{latest.summary || `${latest.tool} executed`}
+      </span>
+    </div>
+  );
+}
+
 export function InvestigationWorkspace() {
   const activeCase = useGameStore((s) => s.activeCase);
   const [showAccusationModal, setShowAccusationModal] = useState(false);
@@ -90,6 +125,9 @@ export function InvestigationWorkspace() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Header AI Investigation Live Ticker */}
+          <HeaderActivityTicker />
+
           <span
             className="text-xs px-2.5 py-1 rounded font-mono flex items-center gap-1.5"
             style={{

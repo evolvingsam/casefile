@@ -91,6 +91,15 @@ function summarizeResult(tool: string, params: Record<string, any>, result: any)
     };
   }
 
+  if (tool === 'get_case_state') {
+    const contradictions = result.suspects?.filter((s: any) => s.hasContradictionAlert)?.length ?? 0;
+    return {
+      summary: `Case state retrieved (${result.suspects?.length ?? 5} suspects, ${contradictions} contradictions flagged)`,
+      kind: contradictions > 0 ? 'warning' : 'tool_call',
+      status: contradictions > 0 ? 'warning' : 'success',
+    };
+  }
+
   if (tool === 'get_suspects') {
     const contradictions = result.suspects?.filter((s: any) => s.hasContradictionAlert)?.length ?? 0;
     return {
@@ -142,22 +151,240 @@ function summarizeResult(tool: string, params: Record<string, any>, result: any)
   };
 }
 
+// Synchronize structured WebMCP tool results directly to the Casefile state layer
+function syncToolResultToState(toolName: string, params: Record<string, any>, result: any) {
+  if (!result) return;
+  const store = useGameStore.getState();
+
+  if (toolName === 'get_case_state') {
+    store.updateCaseState(result);
+  } else if (toolName === 'get_suspect_profile') {
+    if (result.success !== false) {
+      store.setActiveSuspect(result);
+
+      if (result.hasStatementContradiction || result.statementContradiction) {
+        const suspectName = result.name || 'Victoria Adeyemi';
+        store.addContradiction({
+          id: `contradiction-${result.id || 'victoria-adeyemi'}`,
+          title: `Keycard vs Stated Arrival (${suspectName})`,
+          eventTime: '10:19 PM',
+          eventDescription: `${suspectName}'s keycard accessed Daniel's private office.`,
+          contradictedSuspect: suspectName,
+          suspectClaim: `${suspectName} claims she arrived at 10:45 PM.`,
+          evidenceSource: 'Electronic Keycard Access Audit Log (#04)',
+          observation: `${suspectName}'s keycard accessed the private office before her stated arrival.`,
+        });
+
+        store.addInvestigativeLead({
+          title: `${suspectName}'s Keycard Access Discrepancy`,
+          description: `${suspectName}'s keycard accessed the private office at 10:19 PM, before her stated arrival time of 10:45 PM.`,
+          sourceTool: 'get_suspect_profile',
+          status: 'active',
+        });
+      }
+    }
+  } else if (toolName === 'search_evidence') {
+    const caseData = store.activeCase;
+    const rawItems = [...(result.discovered || []), ...(result.discoverableNow || [])];
+    const itemsToUpdate: import('@/game/types').DiscoveredEvidenceItem[] = [];
+
+    rawItems.forEach((raw: any) => {
+      const fullEv = caseData.evidence.find((e) => e.id === raw.id);
+      if (fullEv) {
+        store.discoverEvidence(fullEv.id);
+
+        const loc = caseData.locations.find((l) => l.id === fullEv.location);
+        const relatedSuspects = fullEv.relatedSuspectIds.map(
+          (sid) => caseData.suspects.find((s) => s.id === sid)?.name ?? sid,
+        );
+        const hasContradiction = caseData.timeline.some(
+          (t) => t.isContradiction && t.evidenceIds.includes(fullEv.id),
+        );
+
+        itemsToUpdate.push({
+          id: fullEv.id,
+          name: fullEv.name,
+          description: fullEv.description,
+          isInspected: store.inspectedEvidenceIds.has(fullEv.id),
+          tags: fullEv.tags,
+          location: loc?.name ?? fullEv.location,
+          relatedSuspects,
+          hasContradiction,
+        });
+      } else {
+        itemsToUpdate.push(raw);
+      }
+    });
+
+    if (itemsToUpdate.length > 0) {
+      store.updateDiscoveredEvidence(itemsToUpdate);
+    }
+  } else if (toolName === 'inspect_evidence') {
+    if (result.success !== false) {
+      const caseData = store.activeCase;
+      const evId = result.id || params.evidence_id;
+      const timelineEvent = caseData.timeline.find((t) => t.evidenceIds.includes(evId));
+      const contradictionEvent = caseData.timeline.find((t) => t.isContradiction && t.evidenceIds.includes(evId));
+
+      let contradictionNotice = null;
+      if (contradictionEvent) {
+        const suspectId = contradictionEvent.contradictsSuspectId || contradictionEvent.suspectIds[0];
+        const suspect = caseData.suspects.find((s) => s.id === suspectId);
+        contradictionNotice = {
+          suspectName: suspect?.name ?? suspectId ?? 'Suspect',
+          time: contradictionEvent.time,
+          statement: suspect?.alibi || suspect?.initialStatement || 'Stated alternative timeline.',
+          observation: `Evidence proves activity at ${contradictionEvent.time}, directly contradicting ${suspect?.name || 'suspect'}'s stated timeline.`,
+        };
+
+        store.addContradiction({
+          id: `contradiction-${evId}`,
+          title: `Evidence Discrepancy (${contradictionNotice.suspectName})`,
+          eventTime: timelineEvent?.time || '10:19 PM',
+          eventDescription: `${contradictionNotice.suspectName}'s activity: ${result.name || 'Keycard log'} proves access at ${timelineEvent?.time || '10:19 PM'}.`,
+          contradictedSuspect: contradictionNotice.suspectName,
+          suspectClaim: contradictionNotice.statement || 'Victoria claims she arrived at 10:45 PM.',
+          evidenceSource: result.name || 'Electronic Keycard Access Audit Log',
+          observation: contradictionNotice.observation,
+        });
+
+        store.addInvestigativeLead({
+          title: `${contradictionNotice.suspectName}'s Keycard Access (${timelineEvent?.time || '10:19 PM'})`,
+          description: `${contradictionNotice.suspectName}'s keycard accessed the private office before her stated arrival.`,
+          sourceTool: 'inspect_evidence',
+          status: 'active',
+        });
+      }
+
+      const loc = caseData.locations.find((l) => l.id === result.location);
+
+      const enrichedResult = {
+        ...result,
+        location: loc?.name ?? result.location,
+        relevantTimestamp: timelineEvent?.time ?? null,
+        whatItProves: result.detailedDescription || result.description,
+        contradictionNotice,
+      };
+
+      store.setSelectedEvidence(enrichedResult);
+    }
+  } else if (toolName === 'build_timeline') {
+    if (Array.isArray(result.reconstructedEvents)) {
+      const caseData = store.activeCase;
+      const enrichedEvents = result.reconstructedEvents.map((ev: any) => {
+        const fullEvent = caseData.timeline.find((t) => t.id === ev.id);
+        const relatedEv = fullEvent ? caseData.evidence.filter((e) => fullEvent.evidenceIds.includes(e.id)) : [];
+        const loc = relatedEv[0]
+          ? caseData.locations.find((l) => l.id === relatedEv[0].location)?.name
+          : null;
+
+        return {
+          ...ev,
+          location: loc || (ev.description.toLowerCase().includes('office') ? 'Private Office' : ev.description.toLowerCase().includes('forecourt') ? 'Forecourt' : 'Main Gallery'),
+          source: ev.source || (relatedEv[0]?.name ? `Evidence: ${relatedEv[0].name}` : 'Investigation Record'),
+        };
+      });
+
+      if (Array.isArray(result.contradictionsFound)) {
+        result.contradictionsFound.forEach((c: any) => {
+          store.addContradiction({
+            id: `contradiction-${c.contradictedSuspect}-${c.eventTime}`,
+            title: `Timeline Contradiction: ${c.contradictedSuspect}`,
+            eventTime: c.eventTime,
+            eventDescription: c.eventDescription,
+            contradictedSuspect: c.contradictedSuspect,
+            suspectClaim: c.suspectClaim,
+            evidenceSource: 'Timeline Reconstruction',
+            observation: `Established evidence proves activity at ${c.eventTime}, conflicting with ${c.contradictedSuspect}'s stated timeline.`,
+          });
+
+          store.addInvestigativeLead({
+            title: `Investigate ${c.contradictedSuspect}'s Timeline Discrepancy`,
+            description: `${c.contradictedSuspect} claims "${c.suspectClaim}", but evidence proves activity at ${c.eventTime}.`,
+            sourceTool: 'build_timeline',
+            status: 'active',
+          });
+        });
+      }
+
+      store.updateTimelineState(enrichedEvents, result.contradictionsFound || []);
+    }
+  } else if (toolName === 'interview_suspect') {
+    if (result.success && result.response) {
+      const activeSuspect = store.activeSuspect;
+      if (activeSuspect && activeSuspect.id === params.suspect_id) {
+        const updatedProfile = gameService.getSuspectProfile(params.suspect_id);
+        if (updatedProfile.success !== false) {
+          store.setActiveSuspect(updatedProfile as any);
+        }
+      }
+      store.addInvestigativeLead({
+        title: `Interview: ${result.suspectName || params.suspect_id}`,
+        description: `Asked "${result.questionAsked || params.question}": ${result.response.slice(0, 100)}...`,
+        sourceTool: 'interview_suspect',
+        status: 'active',
+      });
+    }
+  } else if (toolName === 'submit_accusation') {
+    store.addInvestigativeLead({
+      title: `Accusation: ${result.accusedSuspectName || params.suspect_id}`,
+      description: result.verdict ? `${result.verdict} — ${result.message}` : (result.error || 'Accusation evaluated'),
+      sourceTool: 'submit_accusation',
+      status: result.isCorrect ? 'resolved' : 'active',
+    });
+  }
+}
+
+function getRunningSummary(tool: string, params: Record<string, any>): string {
+  if (tool === 'get_case_state') return '→ Retrieving case state...';
+  if (tool === 'get_suspect_profile') {
+    const name = params.suspect_id === 'victoria-adeyemi' ? 'Victoria Adeyemi' : (params.suspect_id || 'suspect');
+    return `→ Loading ${name} profile...`;
+  }
+  if (tool === 'search_evidence') return `→ Searching evidence for "${params.query || 'clues'}"...`;
+  if (tool === 'inspect_evidence') return `→ Inspecting clue "${params.evidence_id || 'evidence'}"...`;
+  if (tool === 'build_timeline') return '→ Reconstructing timeline...';
+  if (tool === 'interview_suspect') return `→ Interviewing ${params.suspect_id || 'suspect'}...`;
+  if (tool === 'submit_accusation') return '→ Evaluating formal accusation...';
+  return `→ Executing ${tool}...`;
+}
+
 // Helper to wrap handlers with error handling & agent activity logging
 function createToolHandler(
   name: string,
   fn: (params: Record<string, any>) => any,
 ): (params: Record<string, any>) => any {
   return (params: Record<string, any>) => {
+    const actionId = crypto.randomUUID();
+    const runningSummary = getRunningSummary(name, params);
+
+    // Log RUNNING state
+    useGameStore.getState().logAgentAction({
+      id: actionId,
+      tool: name,
+      parameters: Object.fromEntries(
+        Object.entries(params || {}).map(([k, v]) => [k, String(v)]),
+      ),
+      result: 'Processing...',
+      summary: runningSummary,
+      kind: 'tool_call',
+      status: 'running',
+    });
+
     try {
       const result = fn(params);
       const { summary, kind, status } = summarizeResult(name, params, result);
       const hypothesis = computeAgentHypothesis();
 
+      // Synchronize structured result directly into Casefile state layer
+      syncToolResultToState(name, params, result);
+
       // Update agent hypothesis in Zustand store
       useGameStore.getState().setAgentHypothesis(hypothesis);
 
-      // Log execution in shared Zustand state for live UI activity panel
+      // Log SUCCESS state
       useGameStore.getState().logAgentAction({
+        id: actionId,
         tool: name,
         parameters: Object.fromEntries(
           Object.entries(params || {}).map(([k, v]) => [k, String(v)]),
@@ -181,12 +408,13 @@ function createToolHandler(
       const errorMessage = err?.message || 'An error occurred executing WebMCP tool';
 
       useGameStore.getState().logAgentAction({
+        id: actionId,
         tool: name,
         parameters: Object.fromEntries(
           Object.entries(params || {}).map(([k, v]) => [k, String(v)]),
         ),
         result: `ERROR: ${errorMessage}`,
-        summary: `Error in ${name}: ${errorMessage}`,
+        summary: `✗ ${name} execution failed: ${errorMessage}`,
         kind: 'warning',
         status: 'error',
       });

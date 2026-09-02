@@ -16,7 +16,14 @@ import type {
   AccusationEvaluation,
   PlayerHypothesis,
   PlayerContradictionFlag,
+  ActiveSuspectProfile,
+  DiscoveredEvidenceItem,
+  SelectedEvidenceDetails,
+  ReconstructedTimelineEvent,
+  ContradictionItem,
+  InvestigativeLead,
 } from '@/game/types';
+import type { PublicCaseState } from '@/game/services/gameService';
 import { THE_GALLERY_MURDER } from '@/game/data/galleryMurder';
 import { getCaseById, getDefaultCaseId } from '@/game/data/registry';
 import { evaluateAccusation } from '@/game/logic/evaluation';
@@ -41,6 +48,16 @@ export interface CaseGameState {
   accusation: string | null;
   accusationSubmission: AccusationSubmission | null;
   accusationEvaluation: AccusationEvaluation | null;
+
+  // WebMCP Structured State Layer
+  caseState: PublicCaseState | null;
+  activeSuspect: ActiveSuspectProfile | null;
+  discoveredEvidence: DiscoveredEvidenceItem[];
+  selectedEvidence: SelectedEvidenceDetails | null;
+  timelineEvents: ReconstructedTimelineEvent[];
+  contradictions: ContradictionItem[];
+  investigativeLeads: InvestigativeLead[];
+  toolActivity: AgentAction[];
 }
 
 export function createInitialCaseState(): CaseGameState {
@@ -62,6 +79,14 @@ export function createInitialCaseState(): CaseGameState {
     accusation: null,
     accusationSubmission: null,
     accusationEvaluation: null,
+    caseState: null,
+    activeSuspect: null,
+    discoveredEvidence: [],
+    selectedEvidence: null,
+    timelineEvents: [],
+    contradictions: [],
+    investigativeLeads: [],
+    toolActivity: [],
   };
 }
 
@@ -123,8 +148,17 @@ interface GameActions {
   deleteContradictionFlag: (id: string) => void;
 
   // Agent actions
-  logAgentAction: (action: Omit<AgentAction, 'id' | 'timestamp'>) => void;
+  logAgentAction: (action: Omit<AgentAction, 'id' | 'timestamp'> & { id?: string; timestamp?: number }) => void;
   setAgentHypothesis: (hypothesis: string) => void;
+
+  // WebMCP Structured State Layer Setters
+  updateCaseState: (caseState: PublicCaseState) => void;
+  setActiveSuspect: (suspect: ActiveSuspectProfile | null) => void;
+  updateDiscoveredEvidence: (evidenceList: DiscoveredEvidenceItem[]) => void;
+  setSelectedEvidence: (evidence: SelectedEvidenceDetails | null) => void;
+  updateTimelineState: (events: ReconstructedTimelineEvent[], contradictions?: ContradictionItem[]) => void;
+  addContradiction: (contradiction: ContradictionItem) => void;
+  addInvestigativeLead: (lead: Omit<InvestigativeLead, 'id' | 'timestamp'>) => void;
 
   // Accusation
   makeAccusation: (
@@ -184,6 +218,14 @@ function updateActiveCaseState(
     accusation: updates.accusation !== undefined ? updates.accusation : state.accusation,
     accusationSubmission: updates.accusationSubmission !== undefined ? updates.accusationSubmission : state.accusationSubmission,
     accusationEvaluation: updates.accusationEvaluation !== undefined ? updates.accusationEvaluation : state.accusationEvaluation,
+    caseState: updates.caseState !== undefined ? updates.caseState : state.caseState,
+    activeSuspect: updates.activeSuspect !== undefined ? updates.activeSuspect : state.activeSuspect,
+    discoveredEvidence: updates.discoveredEvidence ?? state.discoveredEvidence,
+    selectedEvidence: updates.selectedEvidence !== undefined ? updates.selectedEvidence : state.selectedEvidence,
+    timelineEvents: updates.timelineEvents ?? state.timelineEvents,
+    contradictions: updates.contradictions ?? state.contradictions,
+    investigativeLeads: updates.investigativeLeads ?? state.investigativeLeads,
+    toolActivity: updates.toolActivity ?? (updates.agentActions ?? state.agentActions),
   };
 
   return {
@@ -234,6 +276,14 @@ export const useGameStore = create<GameState & GameActions>()(
             accusation: state.accusation,
             accusationSubmission: state.accusationSubmission,
             accusationEvaluation: state.accusationEvaluation,
+            caseState: state.caseState,
+            activeSuspect: state.activeSuspect,
+            discoveredEvidence: [...state.discoveredEvidence],
+            selectedEvidence: state.selectedEvidence,
+            timelineEvents: [...state.timelineEvents],
+            contradictions: [...state.contradictions],
+            investigativeLeads: [...state.investigativeLeads],
+            toolActivity: [...state.toolActivity],
           };
 
           const updatedCaseStates = {
@@ -256,6 +306,11 @@ export const useGameStore = create<GameState & GameActions>()(
                 contradictionFlags: [...rawTarget.contradictionFlags],
                 investigationLog: [...rawTarget.investigationLog],
                 agentActions: [...rawTarget.agentActions],
+                discoveredEvidence: [...(rawTarget.discoveredEvidence || [])],
+                timelineEvents: [...(rawTarget.timelineEvents || [])],
+                contradictions: [...(rawTarget.contradictions || [])],
+                investigativeLeads: [...(rawTarget.investigativeLeads || [])],
+                toolActivity: [...(rawTarget.toolActivity || rawTarget.agentActions || [])],
               }
             : createInitialCaseState();
 
@@ -524,19 +579,31 @@ export const useGameStore = create<GameState & GameActions>()(
 
       logAgentAction: (action) =>
         set((state) => {
-          const newAction: AgentAction = {
+          const actionId = action.id || crypto.randomUUID();
+          const existingIndex = state.agentActions.findIndex((a) => a.id === actionId);
+
+          const updatedAction: AgentAction = {
             ...action,
-            id: crypto.randomUUID(),
-            timestamp: Date.now(),
+            id: actionId,
+            timestamp: action.timestamp || Date.now(),
           };
+
+          let updatedAgentActions: AgentAction[];
+          if (existingIndex >= 0) {
+            updatedAgentActions = [...state.agentActions];
+            updatedAgentActions[existingIndex] = updatedAction;
+          } else {
+            updatedAgentActions = [...state.agentActions, updatedAction];
+          }
 
           const summaryText = action.summary ?? `[WebMCP] ${action.tool} executed`;
 
           return updateActiveCaseState(state, {
-            agentActions: [...state.agentActions, newAction],
+            agentActions: updatedAgentActions,
+            toolActivity: updatedAgentActions,
             investigationLog: [
               ...state.investigationLog,
-              makeEvent('agent_tool_call', `AGENT ${summaryText}`, newAction.id, 'agent'),
+              makeEvent('agent_tool_call', `AGENT ${summaryText}`, updatedAction.id, 'agent'),
             ],
           });
         }),
@@ -556,6 +623,70 @@ export const useGameStore = create<GameState & GameActions>()(
             ],
           }),
         ),
+
+      // ── WebMCP Structured State Layer Actions ──────────────────────────────
+
+      updateCaseState: (caseState) =>
+        set((state) => updateActiveCaseState(state, { caseState })),
+
+      setActiveSuspect: (activeSuspect) =>
+        set((state) => updateActiveCaseState(state, { activeSuspect })),
+
+      updateDiscoveredEvidence: (items) =>
+        set((state) => {
+          const map = new Map(state.discoveredEvidence.map((e) => [e.id, e]));
+          const newDiscoveredIds = new Set(state.discoveredEvidenceIds);
+
+          items.forEach((item) => {
+            map.set(item.id, item);
+            newDiscoveredIds.add(item.id);
+          });
+
+          return updateActiveCaseState(state, {
+            discoveredEvidence: Array.from(map.values()),
+            discoveredEvidenceIds: newDiscoveredIds,
+          });
+        }),
+
+      setSelectedEvidence: (selectedEvidence) =>
+        set((state) => updateActiveCaseState(state, { selectedEvidence })),
+
+      updateTimelineState: (timelineEvents, contradictions = []) =>
+        set((state) => {
+          const map = new Map(state.contradictions.map((c) => [c.id || c.eventDescription || c.description || c.title, c]));
+          contradictions.forEach((c) => {
+            const key = c.id || c.eventDescription || c.description || c.title || crypto.randomUUID();
+            if (!map.has(key)) {
+              map.set(key, { ...c, id: key });
+            }
+          });
+          return updateActiveCaseState(state, {
+            timelineEvents,
+            contradictions: Array.from(map.values()),
+          });
+        }),
+
+      addContradiction: (item) =>
+        set((state) => {
+          const map = new Map(state.contradictions.map((c) => [c.id || c.eventDescription || c.description || c.title, c]));
+          const key = item.id || item.eventDescription || item.description || item.title || crypto.randomUUID();
+          map.set(key, { ...item, id: key });
+          return updateActiveCaseState(state, {
+            contradictions: Array.from(map.values()),
+          });
+        }),
+
+      addInvestigativeLead: (leadData) =>
+        set((state) => {
+          const lead: InvestigativeLead = {
+            ...leadData,
+            id: crypto.randomUUID(),
+            timestamp: Date.now(),
+          };
+          return updateActiveCaseState(state, {
+            investigativeLeads: [...state.investigativeLeads, lead],
+          });
+        }),
 
       // ── Accusation ─────────────────────────────────────────────────────────
 
@@ -652,6 +783,14 @@ export const useGameStore = create<GameState & GameActions>()(
           state.activeView = activeCs.activeView ?? 'overview';
           state.accusation = activeCs.accusation ?? null;
           state.accusationSubmission = activeCs.accusationSubmission ?? null;
+          state.caseState = activeCs.caseState ?? null;
+          state.activeSuspect = activeCs.activeSuspect ?? null;
+          state.discoveredEvidence = activeCs.discoveredEvidence ?? [];
+          state.selectedEvidence = activeCs.selectedEvidence ?? null;
+          state.timelineEvents = activeCs.timelineEvents ?? [];
+          state.contradictions = activeCs.contradictions ?? [];
+          state.investigativeLeads = activeCs.investigativeLeads ?? [];
+          state.toolActivity = activeCs.agentActions ?? [];
         } else {
           const fresh = createInitialCaseState();
           state.caseStates[activeId] = fresh;

@@ -5,6 +5,7 @@ import { useGameStore } from '@/game/state/store';
 import type { CertaintyLevel } from '@/game/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { StructuredFindingsWidget } from '@/components/game/StructuredFindingsWidget';
 
 export function DeductionView() {
   const activeCase = useGameStore((s) => s.activeCase);
@@ -162,6 +163,9 @@ export function DeductionView() {
           </div>
         </div>
       </div>
+
+      {/* WebMCP Structured Contradictions & Leads Widget */}
+      <StructuredFindingsWidget />
 
       {/* Progressive Reasoning Pipeline Banner */}
       <div

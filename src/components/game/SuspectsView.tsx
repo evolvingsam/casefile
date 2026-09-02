@@ -14,6 +14,7 @@ import {
 } from '@/game/logic/interviews';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { executeWebMCPTool } from '@/webmcp/register';
 
 // ─── Suspect Profile & Interview Modal ──────────────────────────────────────
 
@@ -432,17 +433,287 @@ function SuspectModal({
 
 // ─── Main View ────────────────────────────────────────────────────────────────
 
+// ─── Active Suspect Profile View (Driven by get_suspect_profile WebMCP Tool) ─
+
+function ActiveSuspectSection() {
+  const activeSuspect = useGameStore((s) => s.activeSuspect);
+  const investigativeLeads = useGameStore((s) => s.investigativeLeads);
+  const setActiveSuspect = useGameStore((s) => s.setActiveSuspect);
+  const setActiveView = useGameStore((s) => s.setActiveView);
+  const [isInterrogating, setIsInterrogating] = useState(false);
+
+  if (!activeSuspect) return null;
+
+  // Filter relevant investigative leads for this suspect
+  const relevantLeads = investigativeLeads.filter(
+    (lead) =>
+      lead.title.toLowerCase().includes(activeSuspect.name.toLowerCase()) ||
+      lead.description.toLowerCase().includes(activeSuspect.name.toLowerCase()) ||
+      lead.title.toLowerCase().includes(activeSuspect.id.toLowerCase()),
+  );
+
+  const handleQuestionClick = async (questionId: string) => {
+    setIsInterrogating(true);
+    try {
+      await executeWebMCPTool('interview_suspect', {
+        suspect_id: activeSuspect.id,
+        question: questionId,
+      });
+    } catch {
+      // safe fallback
+    } finally {
+      setIsInterrogating(false);
+    }
+  };
+
+  return (
+    <div
+      id="active-suspect-profile-view"
+      className="card p-6 border-amber-500/40 bg-surface-2 animate-fade-in space-y-5"
+      style={{
+        borderLeft: '4px solid var(--color-amber)',
+      }}
+    >
+      {/* Top Banner */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div
+            className="w-14 h-14 rounded-full flex items-center justify-center text-2xl font-bold shrink-0"
+            style={{
+              background: 'oklch(75% 0.18 75 / 0.15)',
+              color: 'var(--color-amber)',
+              border: '1px solid oklch(75% 0.18 75 / 0.3)',
+            }}
+          >
+            {activeSuspect.name.charAt(0)}
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <Badge variant="amber">🤖 WebMCP Loaded Profile</Badge>
+              <Badge variant="muted">{activeSuspect.title}</Badge>
+              {activeSuspect.isInterviewed ? (
+                <Badge variant="amber">Interviewed</Badge>
+              ) : (
+                <Badge variant="muted">Unquestioned</Badge>
+              )}
+              {activeSuspect.hasStatementContradiction && (
+                <Badge variant="crimson">⚡ Statement Contradiction Found</Badge>
+              )}
+            </div>
+            <h2 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-playfair)' }}>
+              {activeSuspect.name}
+            </h2>
+            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              <span className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>Occupation:</span> {activeSuspect.occupation} · <span className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>Relationship / Role:</span> {activeSuspect.relationship}
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setActiveSuspect(null)}
+          className="text-xs px-2.5 py-1 rounded cursor-pointer transition-colors"
+          style={{ background: 'var(--color-surface-3)', color: 'var(--color-text-muted)' }}
+          title="Dismiss Active Suspect Profile"
+        >
+          ✕ Dismiss
+        </button>
+      </div>
+
+      {/* Contradiction Warning */}
+      {activeSuspect.hasStatementContradiction && (
+        <div
+          className="p-3.5 rounded-lg text-xs leading-relaxed flex items-start gap-2.5"
+          style={{
+            background: 'oklch(52% 0.22 18 / 0.12)',
+            border: '1px solid oklch(52% 0.22 18 / 0.35)',
+            color: 'var(--color-text-primary)',
+          }}
+        >
+          <span className="text-base">⚡</span>
+          <div>
+            <p className="font-bold uppercase tracking-wider text-[11px]" style={{ color: 'var(--color-crimson)' }}>
+              Timeline Contradiction Flagged
+            </p>
+            <p style={{ color: 'var(--color-text-secondary)' }}>
+              Physical access evidence or keycard logs directly contradict statements made by {activeSuspect.name} regarding their movements.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Grid details: Motive & Alibi */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <div className="p-3.5 rounded-lg space-y-1" style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}>
+          <p className="font-mono font-semibold uppercase tracking-widest text-[10px]" style={{ color: 'var(--color-amber)' }}>
+            🎯 Surface Motive
+          </p>
+          <p className="leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+            {activeSuspect.motive || 'No explicit motive recorded yet.'}
+          </p>
+        </div>
+
+        <div className="p-3.5 rounded-lg space-y-1" style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}>
+          <p className="font-mono font-semibold uppercase tracking-widest text-[10px]" style={{ color: 'var(--color-amber)' }}>
+            🕰 Stated Alibi
+          </p>
+          <p className="italic leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+            {activeSuspect.alibi || 'No alibi statement logged.'}
+          </p>
+        </div>
+      </div>
+
+      {/* Background & Initial Statement */}
+      <div className="p-3.5 rounded-lg space-y-2" style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}>
+        <div>
+          <p className="font-mono font-semibold uppercase tracking-widest text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+            Background Dossier
+          </p>
+          <p className="text-xs leading-relaxed mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
+            {activeSuspect.description}
+          </p>
+        </div>
+        {activeSuspect.initialStatement && (
+          <div className="pt-2 border-t" style={{ borderColor: 'var(--color-border-subtle)' }}>
+            <p className="font-mono font-semibold uppercase tracking-widest text-[10px]" style={{ color: 'var(--color-amber)' }}>
+              Initial Statement
+            </p>
+            <p className="text-xs italic leading-relaxed mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
+              &ldquo;{activeSuspect.initialStatement}&rdquo;
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Transcript & Questions */}
+      {activeSuspect.interviewTranscript.length > 0 && (
+        <div className="space-y-2">
+          <p className="font-mono font-semibold uppercase tracking-widest text-[10px]" style={{ color: 'var(--color-amber)' }}>
+            💬 Interview History Transcript ({activeSuspect.interviewTranscript.length})
+          </p>
+          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+            {activeSuspect.interviewTranscript.map((item, idx) => (
+              <div
+                key={idx}
+                className="p-3 rounded-lg text-xs space-y-1"
+                style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}
+              >
+                <p className="font-semibold" style={{ color: 'var(--color-amber)' }}>Q: {item.question}</p>
+                <p className="italic" style={{ color: 'var(--color-text-secondary)' }}>&ldquo;{item.response}&rdquo;</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Unlocked Interrogation Questions */}
+      {activeSuspect.availableQuestions.length > 0 && (
+        <div className="space-y-2">
+          <p className="font-mono font-semibold uppercase tracking-widest text-[10px]" style={{ color: 'var(--color-amber)' }}>
+            ⚡ Interrogate Suspect (Triggers WebMCP Tool)
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {activeSuspect.availableQuestions.map((q) => {
+              if (q.isAsked) {
+                return (
+                  <div
+                    key={q.questionId}
+                    className="p-2.5 rounded text-xs opacity-50 flex items-center justify-between"
+                    style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}
+                  >
+                    <span>✓ {q.questionText}</span>
+                    <span className="text-[10px]">Asked</span>
+                  </div>
+                );
+              }
+              if (!q.isAvailable) {
+                return (
+                  <div
+                    key={q.questionId}
+                    className="p-2.5 rounded text-xs opacity-60 flex items-center justify-between"
+                    style={{ background: 'var(--color-surface-1)', border: '1px border-dashed var(--color-border-subtle)' }}
+                  >
+                    <span>🔒 {q.questionText}</span>
+                    <span className="text-[10px] italic">Locked</span>
+                  </div>
+                );
+              }
+              return (
+                <button
+                  key={q.questionId}
+                  disabled={isInterrogating}
+                  onClick={() => handleQuestionClick(q.questionId)}
+                  className="p-2.5 rounded text-xs text-left cursor-pointer transition-all hover:border-amber-400 flex items-center justify-between group"
+                  style={{ background: 'var(--color-surface-3)', border: '1px solid var(--color-border)' }}
+                >
+                  <span className="font-medium">💬 {q.questionText}</span>
+                  <span style={{ color: 'var(--color-amber)' }} className="text-[10px] shrink-0 group-hover:translate-x-0.5 transition-transform">
+                    {isInterrogating ? 'Asking...' : 'Ask →'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Relevant Investigative Leads */}
+      {relevantLeads.length > 0 && (
+        <div className="space-y-2 pt-2 border-t" style={{ borderColor: 'var(--color-border-subtle)' }}>
+          <p className="font-mono font-semibold uppercase tracking-widest text-[10px]" style={{ color: 'var(--color-amber)' }}>
+            🔎 Relevant Investigative Leads ({relevantLeads.length})
+          </p>
+          <div className="space-y-1.5">
+            {relevantLeads.map((lead) => (
+              <div
+                key={lead.id}
+                className="p-2.5 rounded text-xs flex items-center justify-between gap-2"
+                style={{ background: 'var(--color-surface-1)', border: '1px solid var(--color-border-subtle)' }}
+              >
+                <div>
+                  <p className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>{lead.title}</p>
+                  <p className="text-[11px]" style={{ color: 'var(--color-text-secondary)' }}>{lead.description}</p>
+                </div>
+                <Badge variant="muted">{lead.sourceTool}</Badge>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main View ────────────────────────────────────────────────────────────────
+
 export function SuspectsView() {
   const activeCase = useGameStore((s) => s.activeCase);
   const interviewedSuspectIds = useGameStore((s) => s.interviewedSuspectIds);
   const discoveredEvidenceIds = useGameStore((s) => s.discoveredEvidenceIds);
   const interviews = useGameStore((s) => s.interviews);
+  const activeSuspect = useGameStore((s) => s.activeSuspect);
 
   const [selectedId, setSelectedId] = useState<SuspectId | null>(null);
+  const [isLoadingSuspect, setIsLoadingSuspect] = useState(false);
+  const [suspectError, setSuspectError] = useState<string | null>(null);
+
+  const handleSelectSuspect = async (suspectId: string) => {
+    setIsLoadingSuspect(true);
+    setSuspectError(null);
+    try {
+      const res = await executeWebMCPTool('get_suspect_profile', { suspect_id: suspectId });
+      if (!res || res.success === false) {
+        setSuspectError(res?.error || 'Unable to load suspect profile.');
+      }
+    } catch (err: any) {
+      setSuspectError(err?.message || 'Unable to load suspect profile.');
+    } finally {
+      setIsLoadingSuspect(false);
+    }
+  };
 
   return (
     <div className="p-6 md:p-8 animate-fade-in space-y-6">
-      {/* Modal */}
+      {/* Modal fallback for manual interview */}
       {selectedId && (
         <SuspectModal
           suspectId={selectedId}
@@ -470,15 +741,56 @@ export function SuspectsView() {
         <p style={{ color: 'var(--color-text-secondary)' }}>
           {activeCase.suspects.length} suspects connected to victim.{' '}
           <span style={{ color: 'var(--color-text-muted)' }}>
-            {interviewedSuspectIds.size} interviewed. Click any suspect to interrogate.
+            {interviewedSuspectIds.size} interviewed. Click any suspect to fetch full dossier via WebMCP.
           </span>
         </p>
       </div>
+
+      {/* Loading state */}
+      {isLoadingSuspect && (
+        <div
+          className="card p-6 text-center animate-pulse flex items-center justify-center gap-3"
+          style={{ borderColor: 'var(--color-amber-dim)', background: 'var(--color-surface-2)' }}
+        >
+          <span className="w-4 h-4 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+          <span className="text-sm font-mono font-medium" style={{ color: 'var(--color-amber)' }}>
+            Loading suspect profile...
+          </span>
+        </div>
+      )}
+
+      {/* Error state */}
+      {suspectError && (
+        <div
+          className="card p-5 space-y-2"
+          style={{ borderColor: 'oklch(52% 0.22 18 / 0.4)', background: 'oklch(52% 0.22 18 / 0.08)' }}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono font-bold uppercase tracking-widest text-crimson">
+              ⚠️ Unable to load suspect profile.
+            </span>
+            <button
+              onClick={() => setSuspectError(null)}
+              className="text-xs underline cursor-pointer"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              Dismiss
+            </button>
+          </div>
+          <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+            {suspectError}
+          </p>
+        </div>
+      )}
+
+      {/* Active Suspect Profile View (WebMCP Synced) */}
+      <ActiveSuspectSection />
 
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {activeCase.suspects.map((suspect) => {
           const isInterviewed = interviewedSuspectIds.has(suspect.id);
+          const isActive = activeSuspect?.id === suspect.id;
           const knownInfo = getKnownSuspectInfo(
             activeCase,
             suspect.id,
@@ -496,9 +808,11 @@ export function SuspectsView() {
               key={suspect.id}
               id={`suspect-${suspect.id}`}
               className="card card-interactive text-left p-5 flex flex-col justify-between group cursor-pointer"
-              onClick={() => setSelectedId(suspect.id)}
+              onClick={() => handleSelectSuspect(suspect.id)}
               style={
-                hasContradiction
+                isActive
+                  ? { borderColor: 'var(--color-amber)', background: 'oklch(75% 0.18 75 / 0.05)' }
+                  : hasContradiction
                   ? { borderColor: 'oklch(52% 0.22 18 / 0.4)' }
                   : isInterviewed
                   ? { borderColor: 'oklch(75% 0.18 75 / 0.3)' }
@@ -554,7 +868,7 @@ export function SuspectsView() {
                   {linkedEvidenceCount > 0 ? `📄 ${linkedEvidenceCount} linked clues` : 'No evidence linked yet'}
                 </span>
                 <span style={{ color: 'var(--color-amber-dim)' }} className="group-hover:translate-x-1 transition-transform">
-                  {isInterviewed ? 'Continue Interrogation →' : 'Interrogate →'}
+                  {isActive ? 'View Loaded Dossier ↑' : 'Fetch WebMCP Dossier →'}
                 </span>
               </div>
             </button>
@@ -564,3 +878,4 @@ export function SuspectsView() {
     </div>
   );
 }
+

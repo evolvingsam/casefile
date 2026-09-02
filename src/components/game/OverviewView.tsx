@@ -2,6 +2,7 @@
 
 import { useGameStore } from '@/game/state/store';
 import { AgentRecommendationCard } from '@/components/game/AgentRecommendationCard';
+import { StructuredFindingsWidget } from '@/components/game/StructuredFindingsWidget';
 
 export function OverviewView() {
   const activeCase = useGameStore((s) => s.activeCase);
@@ -99,6 +100,9 @@ export function OverviewView() {
           </div>
         </div>
       </div>
+
+      {/* Structured Contradictions & Investigative Leads Widget */}
+      <StructuredFindingsWidget />
 
       {/* AI Recommendation Card */}
       <AgentRecommendationCard />

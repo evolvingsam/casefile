@@ -349,3 +349,94 @@ export interface CaseNote {
   author: ActorType;
   timestamp: number;
 }
+
+// ─── WebMCP Investigation State Layer Types ────────────────────────────────────
+
+export interface ActiveSuspectProfile {
+  id: SuspectId;
+  name: string;
+  title: string;
+  occupation: string;
+  relationship: string;
+  description: string;
+  alibi: string;
+  motive: string;
+  initialStatement: string;
+  isInterviewed: boolean;
+  hasStatementContradiction: boolean;
+  linkedDiscoveredEvidence: Array<{ id: string; name: string }>;
+  interviewTranscript: Array<{ question: string; response: string }>;
+  availableQuestions: Array<{
+    questionId: string;
+    questionText: string;
+    isAvailable: boolean;
+    isAsked: boolean;
+    blockedByEvidence: string | null;
+  }>;
+}
+
+export interface DiscoveredEvidenceItem {
+  id: string;
+  name: string;
+  description: string;
+  isInspected: boolean;
+  tags: string[];
+  location?: string;
+  relatedSuspects?: string[];
+  hasContradiction?: boolean;
+}
+
+export interface SelectedEvidenceDetails {
+  id: string;
+  name: string;
+  description: string;
+  detailedDescription: string;
+  location: string;
+  tags: string[];
+  relatedSuspectIds: string[];
+  relatedSuspects: Array<{ id: string; name: string; title: string }>;
+  relatedDiscoveredEvidence: Array<{ id: string; name: string }>;
+  investigativeObservation: string;
+  relevantTimestamp?: string | null;
+  whatItProves?: string;
+  contradictionNotice?: {
+    suspectName: string;
+    time?: string;
+    statement?: string;
+    observation?: string;
+  } | null;
+}
+
+export interface ReconstructedTimelineEvent {
+  id: string;
+  time: string;
+  description: string;
+  source: string;
+  suspectsInvolved: string[];
+  isContradiction: boolean;
+  contradictsSuspect: string | null;
+  location?: string;
+}
+
+export interface ContradictionItem {
+  id?: string;
+  title?: string;
+  time?: string;
+  eventTime?: string;
+  description?: string;
+  eventDescription?: string;
+  contradictedSuspect?: string | null;
+  suspectClaim?: string;
+  evidenceSource?: string;
+  observation?: string;
+}
+
+export interface InvestigativeLead {
+  id: string;
+  title: string;
+  description: string;
+  sourceTool: string;
+  timestamp: number;
+  status: 'active' | 'resolved' | 'archived';
+}
+

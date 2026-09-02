@@ -5,6 +5,7 @@ import { useGameStore } from '@/game/state/store';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { executeWebMCPTool } from '@/webmcp/register';
+import { AIInvestigationActivity } from '@/components/game/AIInvestigationActivity';
 
 export function AgentActivityPanel() {
   const agentActions = useGameStore((s) => s.agentActions);
@@ -98,6 +99,9 @@ export function AgentActivityPanel() {
 
       {isExpanded && (
         <div className="flex-1 flex flex-col overflow-hidden p-4 space-y-4">
+          {/* AI Investigation Activity Indicator */}
+          <AIInvestigationActivity />
+
           {/* Quick Auto-Run WebMCP Agent Button */}
           <div className="shrink-0 flex items-center justify-between gap-2 p-3 rounded-lg" style={{ background: 'var(--color-surface-2)', border: '1px solid var(--color-border-subtle)' }}>
             <div>
