@@ -103,16 +103,16 @@ function SuspectModal({
             >
               {suspect.name.charAt(0)}
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap mb-0.5">
                 <Badge variant="muted">{suspect.title}</Badge>
                 {isInterviewed && <Badge variant="amber">Interviewed</Badge>}
                 {hasContradiction && <Badge variant="crimson">⚡ Statement Contradiction</Badge>}
               </div>
-              <h2 className="text-xl font-bold" style={{ fontFamily: 'var(--font-playfair)' }}>
+              <h2 className="text-xl font-bold break-words" style={{ fontFamily: 'var(--font-playfair)' }}>
                 {suspect.name}
               </h2>
-              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)' }}>
                 {suspect.occupation} · {suspect.relationship}
               </p>
             </div>
@@ -203,23 +203,23 @@ function SuspectModal({
 
               {/* Interview Log so far */}
               {interviewHistory.length > 0 && (
-                <div className="space-y-3">
+                <div className="space-y-3 min-w-0">
                   <p className="text-xs uppercase tracking-widest" style={{ color: 'var(--color-text-muted)' }}>
                     Transcript ({interviewHistory.length} Answers Recorded)
                   </p>
                   {interviewHistory.map((item, idx) => (
                     <div
                       key={item.id || idx}
-                      className="p-3.5 rounded-lg space-y-1.5"
+                      className="p-3.5 rounded-lg space-y-1.5 min-w-0"
                       style={{
                         background: 'var(--color-surface-2)',
                         border: '1px solid var(--color-border-subtle)',
                       }}
                     >
-                      <p className="text-xs font-semibold" style={{ color: 'var(--color-amber)' }}>
+                      <p className="text-xs font-semibold break-words" style={{ color: 'var(--color-amber)' }}>
                         Q: {item.question}
                       </p>
-                      <p className="text-sm leading-relaxed italic" style={{ color: 'var(--color-text-secondary)' }}>
+                      <p className="text-sm leading-relaxed italic break-words" style={{ color: 'var(--color-text-secondary)' }}>
                         {item.response}
                       </p>
                     </div>

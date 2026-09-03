@@ -71,6 +71,7 @@ function HeaderActivityTicker() {
 export function InvestigationWorkspace() {
   const activeCase = useGameStore((s) => s.activeCase);
   const [showAccusationModal, setShowAccusationModal] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Register WebMCP tools when workspace mounts
   useEffect(() => {
@@ -79,7 +80,7 @@ export function InvestigationWorkspace() {
 
   return (
     <div
-      className="flex flex-col relative flex-1"
+      className="flex flex-col relative flex-1 min-w-0"
       style={{ background: 'var(--color-void)' }}
     >
       {/* Toast Notification Container */}
@@ -92,14 +93,25 @@ export function InvestigationWorkspace() {
 
       {/* Top bar */}
       <header
-        className="flex items-center justify-between px-5 border-b shrink-0"
+        className="flex items-center justify-between px-3 md:px-5 border-b shrink-0 flex-wrap gap-y-2 py-2 md:py-0 min-h-[52px]"
         style={{
-          height: 52,
           background: 'var(--color-surface-1)',
           borderColor: 'var(--color-border-subtle)',
         }}
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Hamburger Menu (Mobile Only) */}
+          <button
+            className="md:hidden p-1 rounded hover:bg-[var(--color-surface-2)] text-[var(--color-text-secondary)]"
+            onClick={() => setIsSidebarOpen(true)}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+
           {/* Logo */}
           <div className="flex items-center gap-2">
             <span
@@ -115,21 +127,21 @@ export function InvestigationWorkspace() {
           </div>
 
           <div
-            className="h-4 w-px"
+            className="hidden sm:block h-4 w-px"
             style={{ background: 'var(--color-border)' }}
           />
 
-          <span className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+          <span className="text-xs sm:text-sm truncate max-w-[120px] sm:max-w-[200px]" style={{ color: 'var(--color-text-muted)' }}>
             {activeCase.title}
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Header AI Investigation Live Ticker */}
           <HeaderActivityTicker />
 
           <span
-            className="text-xs px-2.5 py-1 rounded font-mono flex items-center gap-1.5"
+            className="hidden sm:flex text-xs px-2.5 py-1 rounded font-mono items-center gap-1.5"
             style={{
               background: 'oklch(75% 0.18 75 / 0.1)',
               color: 'var(--color-amber)',
@@ -137,24 +149,25 @@ export function InvestigationWorkspace() {
             }}
           >
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            WEBMCP ACTIVE (9 TOOLS)
+            WEBMCP ACTIVE
           </span>
 
           <Button
             variant="danger"
             size="sm"
             onClick={() => setShowAccusationModal(true)}
+            className="text-xs sm:text-sm px-2 sm:px-4"
           >
-            Make Accusation
+            Accuse
           </Button>
         </div>
       </header>
 
       {/* Body: sidebar + main content + persistent Agent Activity panel */}
-      <div className="flex flex-1 overflow-hidden">
-        <WorkspaceSidebar />
+      <div className="flex flex-1 overflow-hidden min-w-0 relative">
+        <WorkspaceSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-        <main className="flex-1 overflow-y-auto" style={{ background: 'var(--color-void)' }}>
+        <main className="flex-1 overflow-y-auto min-w-0" style={{ background: 'var(--color-void)' }}>
           <ViewRouter />
         </main>
 

@@ -68,10 +68,10 @@ export function OverviewView() {
 
       {/* Victim card */}
       <div
-        className="card p-6"
+        className="card p-4 md:p-6"
         style={{ borderLeftWidth: '4px', borderLeftColor: 'var(--color-crimson)' }}
       >
-        <div className="flex items-start gap-4">
+        <div className="flex flex-col sm:flex-row items-start gap-4">
           <div
             className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-lg"
             style={{
@@ -81,7 +81,7 @@ export function OverviewView() {
           >
             ✦
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <p
               className="text-xs uppercase tracking-widest mb-1"
               style={{ color: 'var(--color-crimson)' }}
@@ -89,12 +89,12 @@ export function OverviewView() {
               Victim
             </p>
             <h2
-              className="text-xl font-semibold mb-2"
+              className="text-xl font-semibold mb-2 break-words"
               style={{ fontFamily: 'var(--font-playfair)' }}
             >
               {activeCase.victim}
             </h2>
-            <p style={{ color: 'var(--color-text-secondary)' }}>
+            <p className="break-words" style={{ color: 'var(--color-text-secondary)' }}>
               {activeCase.victimDescription}
             </p>
           </div>
@@ -108,14 +108,14 @@ export function OverviewView() {
       <AgentRecommendationCard />
 
       {/* Briefing */}
-      <div className="card p-6">
+      <div className="card p-4 md:p-6 min-w-0">
         <h3
           className="text-sm uppercase tracking-widest mb-3"
           style={{ color: 'var(--color-amber)', fontFamily: 'var(--font-playfair)' }}
         >
           Case Briefing
         </h3>
-        <p className="leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
+        <p className="leading-relaxed break-words whitespace-pre-wrap" style={{ color: 'var(--color-text-secondary)' }}>
           {activeCase.briefing}
         </p>
       </div>

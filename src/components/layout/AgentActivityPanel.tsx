@@ -53,20 +53,23 @@ export function AgentActivityPanel() {
   const latestAction = agentActions[agentActions.length - 1];
 
   return (
-    <aside
-      className={`border-l flex flex-col transition-all duration-300 ${
-        isExpanded ? 'w-80 lg:w-96' : 'w-12'
-      }`}
-      style={{
-        background: 'var(--color-surface-1)',
-        borderColor: 'var(--color-border-subtle)',
-        height: '100%',
-      }}
-    >
-      {/* Panel Header */}
-      <div
-        className="p-3 border-b flex items-center justify-between shrink-0"
-        style={{ borderColor: 'var(--color-border-subtle)' }}
+    <>
+      {/* Mobile Overlay for Agent Panel */}
+      {isExpanded && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm md:hidden"
+          onClick={() => setIsExpanded(false)}
+        />
+      )}
+
+      <aside
+        className={`border-l flex flex-col transition-all duration-300 absolute right-0 z-40 h-full md:relative md:z-auto bg-[var(--color-surface-1)] md:bg-transparent ${
+          isExpanded ? 'w-80 lg:w-96 translate-x-0' : 'w-12 translate-x-full md:translate-x-0'
+        }`}
+        style={{
+          borderColor: 'var(--color-border-subtle)',
+          height: '100%',
+        }}
       >
         {isExpanded ? (
           <div className="flex items-center gap-2">
