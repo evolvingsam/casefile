@@ -50,7 +50,18 @@ export async function registerWebMCP() {
         description: tool.description,
         inputSchema: tool.inputSchema,
         execute: async (input: any) => {
-          return await tool.handler(input);
+          const result = await tool.handler(input);
+          
+          // Ensure response matches MCP specification (requires a content array)
+          return {
+            content: [
+              {
+                type: 'text',
+                text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+              }
+            ],
+            isError: result && typeof result === 'object' && result.success === false
+          };
         }
       });
 
