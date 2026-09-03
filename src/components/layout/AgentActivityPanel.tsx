@@ -15,12 +15,12 @@ export function AgentActivityPanel() {
   const [isExpanded, setIsExpanded] = useState(true);
   const [autoRunStep, setAutoRunStep] = useState(0);
   const [isRunningAgent, setIsRunningAgent] = useState(false);
-  const feedEndRef = useRef<HTMLDivElement>(null);
+  const feedContainerRef = useRef<HTMLDivElement>(null);
 
   // Auto scroll to bottom when actions update
   useEffect(() => {
-    if (isExpanded) {
-      feedEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isExpanded && feedContainerRef.current) {
+      feedContainerRef.current.scrollTop = feedContainerRef.current.scrollHeight;
     }
   }, [agentActions.length, isExpanded]);
 
@@ -144,7 +144,7 @@ export function AgentActivityPanel() {
           </div>
 
           {/* Activity Event Stream */}
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+          <div ref={feedContainerRef} className="flex-1 overflow-y-auto space-y-3 pr-1">
             {agentActions.length === 0 ? (
               <div className="text-center py-10 space-y-2 opacity-60">
                 <span className="text-3xl">🤖</span>
@@ -218,7 +218,6 @@ export function AgentActivityPanel() {
                 );
               })
             )}
-            <div ref={feedEndRef} />
           </div>
 
           {/* Footer CTA */}
